@@ -4,9 +4,8 @@ import nest_asyncio
 import pytz
 from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
-    MessageHandler, CallbackQueryHandler, filters, JobQueue
+    MessageHandler, CallbackQueryHandler, filters
 )
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import TOKEN
 from database.database import *
 from handlers.nsfw import *
@@ -32,16 +31,14 @@ async def main():
     try:
         await db.init_db()
 
-        # Create JobQueue and replace its scheduler with one using UTC
-        job_queue = JobQueue()
-        job_queue.scheduler = AsyncIOScheduler(timezone=pytz.UTC)
-
-        # Build Application with the custom JobQueue
+        # Build Application (JobQueue will use tzlocal's timezone)
         application = ApplicationBuilder() \
             .token(TOKEN) \
             .arbitrary_callback_data(True) \
-            .job_queue(job_queue) \
             .build()
+
+        # Optionally set UTC explicitly if you don't trust tzlocal
+        application.job_queue.scheduler.configure(timezone=pytz.UTC)
 
         # Register Handlers
         application.add_handler(CommandHandler("start", start_command))
