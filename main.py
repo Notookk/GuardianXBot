@@ -6,6 +6,7 @@ from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
     MessageHandler, CallbackQueryHandler, filters
 )
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import TOKEN
 from database.database import *
 from handlers.nsfw import *
@@ -15,6 +16,13 @@ from handlers.broadcast import *
 
 # Fix event loop conflict
 nest_asyncio.apply()
+
+# Patch AsyncIOScheduler to default to UTC
+original_init = AsyncIOScheduler.__init__
+def patched_init(self, *args, **kwargs):
+    kwargs.setdefault('timezone', pytz.UTC)
+    original_init(self, *args, **kwargs)
+AsyncIOScheduler.__init__ = patched_init
 
 # Configure Logging
 logging.basicConfig(
@@ -31,14 +39,11 @@ async def main():
     try:
         await db.init_db()
 
-        # Build Application (JobQueue will use tzlocal's timezone)
+        # Build Application (JobQueue will now use patched AsyncIOScheduler with UTC)
         application = ApplicationBuilder() \
             .token(TOKEN) \
             .arbitrary_callback_data(True) \
             .build()
-
-        # Optionally set UTC explicitly if you don't trust tzlocal
-        application.job_queue.scheduler.configure(timezone=pytz.UTC)
 
         # Register Handlers
         application.add_handler(CommandHandler("start", start_command))
