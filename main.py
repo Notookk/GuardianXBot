@@ -17,12 +17,14 @@ from handlers.broadcast import *
 # Fix event loop conflict
 nest_asyncio.apply()
 
-# Patch AsyncIOScheduler to default to UTC
-original_init = AsyncIOScheduler.__init__
-def patched_init(self, *args, **kwargs):
-    kwargs.setdefault('timezone', pytz.UTC)
-    original_init(self, *args, **kwargs)
-AsyncIOScheduler.__init__ = patched_init
+# Patch AsyncIOScheduler's _configure to always use UTC unless overridden
+original_configure = AsyncIOScheduler._configure
+def patched_configure(self, config):
+    # Ensure timezone is always a pytz timezone, defaulting to UTC
+    config = config.copy()  # Avoid modifying the original config dict
+    config['timezone'] = config.get('timezone', pytz.UTC)
+    original_configure(self, config)
+AsyncIOScheduler._configure = patched_configure
 
 # Configure Logging
 logging.basicConfig(
@@ -39,7 +41,7 @@ async def main():
     try:
         await db.init_db()
 
-        # Build Application (JobQueue will now use patched AsyncIOScheduler with UTC)
+        # Build Application (JobQueue will use the patched AsyncIOScheduler)
         application = ApplicationBuilder() \
             .token(TOKEN) \
             .arbitrary_callback_data(True) \
