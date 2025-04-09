@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import nest_asyncio
+import pytz  # Required import
 from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
     MessageHandler, CallbackQueryHandler, filters
@@ -29,11 +30,15 @@ async def main():
     """Main function to initialize the bot and start polling."""
     await db.init_db()
 
-    # Build Application with UTC timezone
+    # Build Application with explicit UTC timezone
     application = ApplicationBuilder() \
         .token(TOKEN) \
+        .arbitrary_callback_data(True) \
         .build()
     
+    # Set UTC timezone for job queue
+    application.job_queue.scheduler.configure(timezone=pytz.UTC)
+
     # Register Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", start_command))
