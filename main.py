@@ -4,7 +4,7 @@ import nest_asyncio
 import pytz
 from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
-    MessageHandler, CallbackQueryHandler, filters
+    MessageHandler, CallbackQueryHandler, filters, JobQueue
 )
 from config import TOKEN
 from database.database import *
@@ -31,13 +31,16 @@ async def main():
     try:
         await db.init_db()
 
-        # Build Application with explicit UTC timezone
+        # Create a JobQueue with the correct timezone
+        job_queue = JobQueue()
+        job_queue.scheduler.configure(timezone=pytz.UTC)
+
+        # Build Application with the custom JobQueue
         application = ApplicationBuilder() \
             .token(TOKEN) \
             .arbitrary_callback_data(True) \
+            .job_queue(job_queue) \
             .build()
-        
-        application.job_queue.scheduler.configure(timezone=pytz.UTC)
 
         # Register Handlers
         application.add_handler(CommandHandler("start", start_command))
@@ -58,18 +61,11 @@ async def main():
         logger.error(f"Bot crashed: {str(e)}", exc_info=True)
         raise
 
-async def shutdown(application: Application):
-    logger.info("Shutting down bot...")
-    await application.stop()
-    await application.job_queue.stop()
-
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    application = None  # Will be set in main()
     try:
         loop.run_until_complete(main())
     except KeyboardInterrupt:
-        if application:
-            loop.run_until_complete(shutdown(application))
+        logger.info("Bot stopped by user")
     finally:
         loop.close()
