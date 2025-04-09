@@ -1,0 +1,17 @@
+nsfw_bot/
+├── main.py                   # Main entry point of the bot
+├── database/
+│   ├── __init__.py           # Initialization for database package
+│   └── db.py                 # MongoDB database operations
+├── handlers/
+│   ├── __init__.py           # Initialization for handlers package
+│   ├── nsfw_handler.py       # NSFW detection logic
+│   └── stats_handler.py      # Statistics handler
+├── models/
+│   ├── __init__.py           # Initialization for models package
+│   └── nsfw_model.py         # Model and processor loading
+├── utils/
+│   ├── __init__.py           # Initialization for utils package
+│   └── video_utils.py        # Utility functions for handling video frames
+├── requirements.txt          # Dependencies list
+└── config.py                 # Configuration file for constants like API tokens, DB URL, etc.
