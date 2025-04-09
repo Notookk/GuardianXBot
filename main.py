@@ -31,14 +31,11 @@ async def main():
     try:
         await db.init_db()
 
-        # Build Application (relies on tzlocal providing a pytz timezone)
+        # Build Application (relies on tzlocal working)
         application = ApplicationBuilder() \
             .token(TOKEN) \
             .arbitrary_callback_data(True) \
             .build()
-
-        # Optionally enforce UTC
-        application.job_queue.scheduler.configure(timezone=pytz.UTC)
 
         # Register Handlers
         application.add_handler(CommandHandler("start", start_command))
