@@ -1,10 +1,9 @@
 import logging
 import asyncio
 import nest_asyncio
-import pytz  # ✅ Add this
 from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
-    MessageHandler, CallbackQueryHandler, filters, CallbackContext
+    MessageHandler, CallbackQueryHandler, filters
 )
 from config import TOKEN
 from database.database import *
@@ -13,29 +12,29 @@ from handlers.start import *
 from handlers.utils import *
 from handlers.broadcast import *
 
-# ✅ Fix event loop conflict
+# Fix event loop conflict
 nest_asyncio.apply()
 
-# ✅ Configure Logging
+# Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# ✅ Initialize Database
+# Initialize Database
 db = Database()
-
 
 async def main():
     """Main function to initialize the bot and start polling."""
     await db.init_db()
 
-    # ✅ Build Application with JobQueue using pytz timezone
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.job_queue.scheduler.configure(timezone=pytz.UTC)  # ✅ Fix timezone issue
-
-    # ✅ Register Handlers
+    # Build Application with UTC timezone
+    application = ApplicationBuilder() \
+        .token(TOKEN) \
+        .build()
+    
+    # Register Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
@@ -50,10 +49,7 @@ async def main():
 
     logger.info("🤖 Bot is running...✅")
 
-    await application.run_polling(timeout=30)
-
-    logger.info("🤖 Bot stopped...✅")
-
+    await application.run_polling()
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
