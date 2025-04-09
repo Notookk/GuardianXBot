@@ -6,6 +6,7 @@ from telegram.ext import (
     ApplicationBuilder, Application, CommandHandler,
     MessageHandler, CallbackQueryHandler, filters, JobQueue
 )
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import TOKEN
 from database.database import *
 from handlers.nsfw import *
@@ -31,9 +32,9 @@ async def main():
     try:
         await db.init_db()
 
-        # Create a JobQueue with the correct timezone
+        # Create JobQueue and replace its scheduler with one using UTC
         job_queue = JobQueue()
-        job_queue.scheduler.configure(timezone=pytz.UTC)
+        job_queue.scheduler = AsyncIOScheduler(timezone=pytz.UTC)
 
         # Build Application with the custom JobQueue
         application = ApplicationBuilder() \
