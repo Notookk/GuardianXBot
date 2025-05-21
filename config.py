@@ -5,7 +5,7 @@ API_HASH = 'e154b1ccb0195edec0bc91ae7efebc2f'
 # MongoDB connection string
 DB_URI = 'mongodb+srv://copy:copy@cluster0.q6zqg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
 LOG_CHANNEL = '-1002240372506'
-TOKEN = "6633123894:AAH8T9t7tT70AubSH53ev8sUec1MpTGVSc4"
+TOKEN = "7141521775:AAEqvM54aUU-KFcvNdDB-2oKA136Cn0uZig"
 OWNER_ID = 7875192045  # Change to actual owner ID
 ALERT_CHANNEL_ID = "-1002329693689"
 MEDIA_DIR = "../media"
