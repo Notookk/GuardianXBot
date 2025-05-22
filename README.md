@@ -19,6 +19,8 @@ NSFW-Bot/ │── bot.py # Main bot logic (handles messages, detection, and de
 
 
 ---
+# Deploy To Heroku 🚀
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://dashboard.heroku.com/new?template=https://github.com/Notookk/GuardianXBot)
 
 ## 🔧 Installation  
 
