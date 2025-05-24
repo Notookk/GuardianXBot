@@ -19,3 +19,4 @@ aiofiles
 dnspython
 imageio>=2.9.0
 imageio-ffmpeg>=0.4.5
+nest_asyncio
