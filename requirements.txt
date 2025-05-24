@@ -9,6 +9,7 @@ uvloop
 cryptg
 tgcrypto
 tensorflow
+tensorflow-hub
 numpy
 Pillow
 opencv-python 
