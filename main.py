@@ -8,6 +8,7 @@ from handlers.nsfw import *
 from handlers.start import *
 from handlers.utils import *
 from handlers.broadcast import *
+from flask import Flask, Response, jsonify, request, send_file, stream_with_context, render_template
 
 # ✅ Fix event loop conflict
 nest_asyncio.apply()
@@ -57,3 +58,4 @@ async def main():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())  # ✅ Uses existing event loop (NO conflict)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
