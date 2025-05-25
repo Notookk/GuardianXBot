@@ -1,7 +1,7 @@
 python-telegram-bot
-motor==3.1.1
-transformers==4.32.0
-torch==2.2.0
+motor[default]
+transformers[default]
+torch[default]
 opencv-python-headless
 pymongo
 pyrogram
@@ -18,7 +18,7 @@ lottie
 ffmpeg-python
 aiofiles
 dnspython
-imageio>=2.9.0
-imageio-ffmpeg>=0.4.5
+imageio[default]
+imageio-ffmpeg[default]
 nest_asyncio
 aiosqlite
