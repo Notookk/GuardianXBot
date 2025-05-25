@@ -1,0 +1,7 @@
+{
+   "name": "Guardian Bot",
+   "description": "Telegram Bot",
+   "repository": "https://github.com/Notookk/GuardianXBot",
+   "logo": "https://graph.org/file/1d80c38ce328695547203.jpg",
+   "image": "heroku/python",
+}
