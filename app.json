@@ -1,9 +1,20 @@
 {
-   "name": "copyright bot",
+   "name": "Guardian Bot",
    "description": "Telegram Bot",
-   "repository": "https://github.com/Notookk/Dkd",
+   "repository": "https://github.com/Notookk/GuardianXBot",
    "logo": "https://graph.org/file/1d80c38ce328695547203.jpg",
    "image": "heroku/python",
+   "env": {
+      "BOT_TOKEN": {
+        "description": "Bot Token",
+        "value": "",
+        "required": true
+      },      
+      "SUDO": {
+            "description": "Sudo users id space by space",
+            "value": "",
+            "required": true  
+      }
    },
    "formation": {
             "worker": {
