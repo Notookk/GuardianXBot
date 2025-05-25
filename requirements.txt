@@ -8,7 +8,7 @@ pyrogram
 uvloop
 cryptg
 tgcrypto
-tensorflow
+tensorflow[default]
 tensorflow-hub
 numpy
 Pillow
