@@ -8,7 +8,7 @@ pyrogram
 uvloop
 cryptg
 tgcrypto
-# tensorflow==2.10.0   # Uncomment if using Python 3.7–3.10
+tensorflow==2.10.0
 tensorflow-hub
 numpy
 Pillow
@@ -21,3 +21,4 @@ imageio
 imageio-ffmpeg
 nest_asyncio
 aiosqlite
+flask
