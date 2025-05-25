@@ -1,16 +1,10 @@
-FROM python:3.11-slim
+FROM debian:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    libgl1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
+RUN apt update && apt upgrade -y
+RUN apt install git curl python3-pip -y
+RUN pip3 install -U pip
+RUN mkdir /app/
 WORKDIR /app/
-
-COPY requirements.txt ./
-RUN pip3 install --no-cache-dir --upgrade -r requirements.txt
-
-COPY . .
-
-CMD ["python", "main.py"]
+COPY . /app/
+RUN pip3 install -U -r requirements.txt
+CMD python3 main.py
