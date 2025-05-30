@@ -1,34 +1,59 @@
+import asyncio
+import logging
+from typing import List
+
 from telegram import Update, Chat
 from telegram.constants import ChatType
 from telegram.ext import ContextTypes
-import asyncio
-from database import db, Database
+from database import db
 
-# Replace this with your own SUDO_USERS list or database check
-SUDO_USERS = [7875192045]  # Add your Telegram user ID(s) here
+logger = logging.getLogger(__name__)
 
+# --- SUDO USER MANAGEMENT ---
+# Try to import SUDO_USERS from config, fallback to hardcoded value.
+try:
+    from config import SUDO_USERS  # Prefer from config for production
+except ImportError:
+    SUDO_USERS = [7875192045]  # Replace with your own Telegram user IDs
 
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_broadcast_recipients() -> List[int]:
+    """
+    Fetch all user_ids who have started the bot.
+    Extend this to filter out banned/deactivated users if needed.
+    """
+    users = await db._execute("SELECT user_id FROM users WHERE started_bot = 1")
+    return [uid for (uid,) in users] if users else []
+
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Telegram command handler for /broad, only for SUDO users.
+    Broadcasts the replied-to message to all users/groups known to the bot.
+    Shows progress and logs results.
+    """
     user_id = update.effective_user.id
 
-    # Check if user is sudo
+    # Sudo check
     if user_id not in SUDO_USERS:
-        return await update.message.reply_text("🚫 You are not authorized to use this command.")
+        await update.message.reply_text("🚫 You are not authorized to use this command.")
+        return
 
-    # Ensure the command is used as a reply to the message to forward
+    # Must reply to a message
     if not update.message.reply_to_message:
-        return await update.message.reply_text("📌 Please reply to the message you want to broadcast.")
+        await update.message.reply_text("📌 Please reply to the message you want to broadcast.")
+        return
 
     msg = await update.message.reply_text("📣 Broadcasting started...")
 
     message_to_forward = update.message.reply_to_message
+    recipients = await get_broadcast_recipients()
 
-    # Fetch all user IDs (users + groups)
-    users = await db._execute("SELECT user_id FROM users")
+    if not recipients:
+        await msg.edit_text("⚠️ No users found to broadcast to.")
+        return
 
     success, failed, pinned = 0, 0, 0
 
-    for (uid,) in users:
+    for idx, uid in enumerate(recipients, 1):
         try:
             # Forward the message
             forwarded = await context.bot.forward_message(
@@ -38,7 +63,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             success += 1
 
-            # Try to pin if it's a group
+            # Attempt to pin if this is a group or supergroup
             try:
                 chat: Chat = await context.bot.get_chat(uid)
                 if chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
@@ -48,14 +73,28 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         disable_notification=True
                     )
                     pinned += 1
-            except:
-                pass  # Skip if not group or no permission
+            except Exception as e:
+                logger.info(f"Could not pin message in chat {uid}: {e}")
 
         except Exception as e:
             failed += 1
+            logger.warning(f"Failed to forward to {uid}: {e}")
 
-        # Optional: slow down to avoid flooding
-        await asyncio.sleep(0.05)
+        # Progress update for large broadcasts
+        if idx % 100 == 0 or idx == len(recipients):
+            try:
+                await msg.edit_text(
+                    f"📣 Broadcasting...\n"
+                    f"✅ Delivered: {success}\n"
+                    f"❌ Failed: {failed}\n"
+                    f"📌 Pinned: {pinned}\n"
+                    f"Progress: {idx}/{len(recipients)}"
+                )
+            except Exception as e:
+                logger.debug(f"Could not update progress message: {e}")
+
+        # Rate limiting: adjust as needed to avoid Telegram flood limits
+        await asyncio.sleep(0.1)
 
     # Final status message
     await msg.edit_text(
