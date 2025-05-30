@@ -8,7 +8,7 @@ from handlers.nsfw import *
 from handlers.start import *
 from handlers.utils import *
 from handlers.broadcast import *
-from flask import Flask, Response, jsonify, request, send_file, stream_with_context, render_template
+# from flask import Flask, Response, jsonify, request, send_file, stream_with_context, render_template
 
 # ✅ Fix event loop conflict
 nest_asyncio.apply()
