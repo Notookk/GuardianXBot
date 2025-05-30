@@ -44,6 +44,7 @@ async def main():
     application.add_handler(CommandHandler("add", add_approved))
     application.add_handler(CommandHandler("remove", remove_approved))
     application.add_handler(CommandHandler("broad", broadcast_command))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member))
     application.add_handler(MessageHandler(filters.ALL, handle_media))
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member))
   # 👈 added this
