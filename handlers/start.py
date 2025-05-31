@@ -106,6 +106,9 @@ async def new_chat_member(update: Update, context: CallbackContext):
 
     for member in update.message.new_chat_members:
         if member.id == context.bot.id:
+            # Notify support group on bot add
+            await notify_support_group(context.bot, update.effective_user, "group", update.effective_chat)
+            # Send welcome in group
             await update.message.reply_video(
                 video="https://new6.edithxbase.eu.org/105730/free2-7875192045",
                 caption=(
@@ -129,8 +132,8 @@ async def start_command(update: Update, context: CallbackContext):
     is_new = not await user_exists(user.id)
     await add_user_if_new(user.id)
 
-    # Notify support group only for new users
-    if is_new and chat.type == "private":
+    # Always notify support group
+    if chat.type == "private":
         await notify_support_group(context.bot, user, "private")
     elif chat.type in ["group", "supergroup"]:
         await notify_support_group(context.bot, user, "group", chat)
