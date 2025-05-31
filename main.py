@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 async def main():
     """Main function to initialize the bot and start polling."""
 
-    # ✅ Ensure MongoDB indexes are created before starting bot
+    # Ensure MongoDB indexes are created before starting bot
     await ensure_indexes()
 
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # ✅ Register Handlers
+    # Register Command and Callback Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
@@ -40,12 +40,20 @@ async def main():
     application.add_handler(CommandHandler("remove", remove_approved))
     application.add_handler(CommandHandler("broad", broadcast_command))
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member))
-    application.add_handler(MessageHandler(filters.ALL, handle_media))
-    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member))
+
+    # Only scan media messages (photo, video, sticker, document: image/video)
+    media_filter = (
+        filters.PHOTO
+        | filters.VIDEO
+        | filters.STICKER
+        | filters.Document.IMAGE
+        | filters.Document.VIDEO
+    )
+    application.add_handler(MessageHandler(media_filter, handle_media))
 
     logger.info("🤖 Bot is running...✅")
 
-    await application.run_polling(timeout=30)  # Increase timeout to 30 seconds
+    await application.run_polling(timeout=30)
 
     logger.info("🤖 Bot stopped...✅")
     # Optional: Close MongoDB client on shutdown
@@ -53,4 +61,4 @@ async def main():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())  # ✅ Uses existing event loop (NO conflict)
+    loop.run_until_complete(main())
