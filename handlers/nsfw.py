@@ -255,8 +255,13 @@ async def handle_nsfw_violation(
 
 def format_user_alert(user: User, result: dict) -> str:
     """Format the user alert message using MarkdownV2 with correct order and mention."""
+    def escape_md(text: str) -> str:
+        """Escape MarkdownV2 special characters in a string."""
+        escape_chars = r"_*[]()~`>#+-=|{}.!"
+        return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
+    
     first_name = escape_md(user.first_name)
-    username = f"@{user.username}" if user.username else "None"
+    username = f"@{escape_md(user.username)}" if user.username else "None"
     user_id = str(user.id)
     mention = f"[{first_name}](tg://user?id={user.id})"
 
@@ -275,7 +280,7 @@ def format_user_alert(user: User, result: dict) -> str:
         f"│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}\n"
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
-    return msg 
+    return msg
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     """Format the admin alert message using MarkdownV2."""
