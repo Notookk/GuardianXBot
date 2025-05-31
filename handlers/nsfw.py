@@ -16,7 +16,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
 from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
-# Fix Windows console encoding for emojis
 if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -43,11 +42,6 @@ def escape_md(text: str) -> str:
         return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
-
-def escape_md_template(text: str) -> str:
-    """Escape MarkdownV2 for static lines (dot included)."""
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
@@ -218,14 +212,16 @@ async def handle_nsfw_violation(
         user_alert = format_user_alert(user, result)
         admin_alert = format_admin_alert(user, result, chat_id, update)
 
-        await context.bot.send_message(
-            chat_id,
-            user_alert,
-            parse_mode="MarkdownV2"
-        )
+        # Send user alert (plain text, always works)
+        try:
+            await context.bot.send_message(
+                chat_id,
+                user_alert
+            )
         except BadRequest as e:
             logger.warning(f"Couldn't send user alert: {e}", exc_info=True)
 
+        # Send admin alert (plain text, always works)
         try:
             await context.bot.send_message(
                 ALERT_CHANNEL_ID,
@@ -238,8 +234,7 @@ async def handle_nsfw_violation(
             if "Button_user_privacy_restricted" in str(e):
                 await context.bot.send_message(
                     ALERT_CHANNEL_ID,
-                    admin_alert,
-                    parse_mode="MarkdownV2"
+                    admin_alert
                 )
             else:
                 logger.error(f"Admin alert failed: {e}", exc_info=True)
@@ -248,33 +243,55 @@ async def handle_nsfw_violation(
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
 def format_user_alert(user, result):
-    first_name = escape_md(user.first_name)
-    username = f"@{escape_md(user.username)}" if user.username else "None"
-    user_id = escape_md(str(user.id))
-    mention = f"[{first_name}](tg://user?id={user.id})"
+    first_name = user.first_name
+    username = f"@{user.username}" if user.username else "None"
+    user_id = str(user.id)
+    mention = f"{first_name} (tg://user?id={user.id})"
 
     def escnum(val):
-        return escape_md(f"{val:.2f}")
+        return f"{val:.2f}"
 
     lines = [
         "╭─────────────────",
-        "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞",
+        "╰──● NSFW DETECTED 🔞",
         "╭✠╼━━━━━━❖━━━━━━━✠╮ ",
-        f"│➺𝙽𝚊𝚖𝚎: {mention}",
-        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}",
-        f"│➺𝚄𝚜𝚎𝚛: {user_id}",
-        "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:",
-        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {escnum(result.get('drawings', 0))}",
-        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {escnum(result.get('neutral', 0))}",
-        f"│➺𝙿𝚘𝚛𝚗: {escnum(result.get('porn', 0))}",
-        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {escnum(result.get('hentai', 0))}",
-        f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}",
+        f"│➺ Name: {mention}",
+        f"│➺ Username: {username}",
+        f"│➺ User: {user_id}",
+        "│➺ Details:",
+        f"│➺ Drawings: {escnum(result.get('drawings', 0))}",
+        f"│➺ Neutral: {escnum(result.get('neutral', 0))}",
+        f"│➺ Porn: {escnum(result.get('porn', 0))}",
+        f"│➺ Hentai: {escnum(result.get('hentai', 0))}",
+        f"│➺ Sexy: {escnum(result.get('sexy', 0))}",
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     ]
-    # Escape all static lines but not markdown mentions
+    return '\n'.join(lines)
+
+def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
+    first_name = user.first_name
+    last_name = user.last_name if user.last_name else ""
+    username = f"@{user.username}" if user.username else "None"
+    def escnum(val):
+        return f"{val:.2f}"
+
     lines = [
-        escape_md_template(line) if not ("[" in line and "](" in line) else line
-        for line in lines
+        "🚨 NSFW DETECTED 🔞",
+        "",
+        f"User: {str(user.id)}",
+        f"Username: {username}",
+        f"First Name: {first_name}",
+        f"Last Name: {last_name}",
+        "",
+        "Detection Scores:",
+        f"Drawings: {escnum(result.get('drawings', 0))}",
+        f"Neutral: {escnum(result.get('neutral', 0))}",
+        f"Porn: {escnum(result.get('porn', 0))}",
+        f"Hentai: {escnum(result.get('hentai', 0))}",
+        f"Sexy: {escnum(result.get('sexy', 0))}",
+        "",
+        f"Chat ID: {str(chat_id)}",
+        f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
     ]
     return '\n'.join(lines)
 
