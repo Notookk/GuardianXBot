@@ -35,7 +35,7 @@ from .predict import detect_nsfw
 
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
-
+#---------------------------------<>---------------------------------------#
 def escape_md(text: str) -> str:
     """Escape all Telegram MarkdownV2 reserved characters, including '.' in floats."""
     if not text:
@@ -43,7 +43,13 @@ def escape_md(text: str) -> str:
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     import re
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
-    
+
+def escape_md_template(text: str) -> str:
+    """Escape all Telegram MarkdownV2 reserved characters for static lines."""
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    import re
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
+#---------------------------------<>---------------------------------------#    
 
 class MediaConverter:
     @staticmethod
