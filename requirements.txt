@@ -20,5 +20,3 @@ dnspython
 imageio
 imageio-ffmpeg
 nest_asyncio
-aiosqlite
-flask
