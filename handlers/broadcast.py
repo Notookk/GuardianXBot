@@ -6,7 +6,7 @@ from telegram import Update, Chat
 from telegram.constants import ChatType
 from telegram.ext import ContextTypes
 
-from database.mongodb import get_recipients_for_broadcast
+from database.mongodb import get_recipients_for_broadcast , get_all_group_ids
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +16,16 @@ try:
 except ImportError:
     SUDO_USERS = [7875192045]  # Replace with your own Telegram user IDs
 
-async def get_broadcast_recipients() -> List[int]:
+ get_all_group_ids
+
+async def get_broadcast_recipients() -> list[int]:
     """
-    Fetch all user_ids who have started the bot.
+    Fetch user_ids who started the bot AND all group_ids where the bot is present.
     """
-    return await get_recipients_for_broadcast("all")
+    user_ids = await get_recipients_for_broadcast("all")
+    group_ids = await get_all_group_ids()
+    recipients = list(set(user_ids + group_ids))
+    return recipients
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
