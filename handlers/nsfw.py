@@ -24,7 +24,6 @@ if sys.platform == "win32":
 
 from config import OWNER_ID, ALERT_CHANNEL_ID, MEDIA_DIR
 
-# --- FIX: Use MongoDB backend ---
 from database.mongodb import (
     is_approved,
     update_violations,
@@ -40,13 +39,12 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 
 def escape_md(text: str) -> str:
     """
-    Escape Telegram MarkdownV2 special characters.
-    Use ONLY on user-supplied fields, NOT on full lines with Markdown syntax.
+    Escape Telegram MarkdownV2 special characters in user-supplied fields or numbers.
     """
     if not text:
         return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
 class MediaConverter:
     @staticmethod
@@ -261,18 +259,16 @@ def format_user_alert(user, result):
     """
     Format the user alert message for Telegram MarkdownV2.
     Name (mention), then username, then id.
-    Only user fields are escaped for MarkdownV2; formatting is not escaped.
+    User fields and numbers are safely escaped for MarkdownV2.
     """
     first_name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
     user_id = str(user.id)
     mention = f"[{first_name}](tg://user?id={user.id})"
-    drawings = result.get('drawings', 0)
-    neutral = result.get('neutral', 0)
-    porn = result.get('porn', 0)
-    hentai = result.get('hentai', 0)
-    sexy = result.get('sexy', 0)
-    
+
+    def escnum(val):
+        return escape_md(f"{val:.2f}")
+
     msg = (
         "╭─────────────────\n"
         "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
@@ -281,21 +277,25 @@ def format_user_alert(user, result):
         f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}\n"
         f"│➺𝚄𝚜𝚎𝚛: {user_id}\n"
         "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
-        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {drawings:.2f}\n"
-        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {neutral:.2f}\n"
-        f"│➺𝙿𝚘𝚛𝚗: {porn:.2f}\n"
-        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {hentai:.2f}\n"
-        f"│➺𝚂𝚎𝚡𝚢: {sexy:.2f}\n"
+        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {escnum(result.get('drawings', 0))}\n"
+        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {escnum(result.get('neutral', 0))}\n"
+        f"│➺𝙿𝚘𝚛𝚗: {escnum(result.get('porn', 0))}\n"
+        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {escnum(result.get('hentai', 0))}\n"
+        f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}\n"
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
     return msg
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    """Format the admin alert message using MarkdownV2."""
-    # Only escape user data, not the format string
+    """
+    Format the admin alert message using MarkdownV2.
+    Only user fields and numbers are escaped!
+    """
     first_name = escape_md(user.first_name)
     last_name = escape_md(user.last_name) if user.last_name else ""
     username = f"@{escape_md(user.username)}" if user.username else "None"
+    def escnum(val):
+        return escape_md(f"{val:.2f}")
     msg = (
         "🚨 NSFW DETECTED 🔞\n\n"
         f"User: {user.id}\n"
@@ -303,17 +303,16 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"First Name: {first_name}\n"
         f"Last Name: {last_name}\n\n"
         "Detection Scores:\n"
-        f"Drawings: {result.get('drawings', 0):.2f}\n"
-        f"Neutral: {result.get('neutral', 0):.2f}\n"
-        f"Porn: {result.get('porn', 0):.2f}\n"
-        f"Hentai: {result.get('hentai', 0):.2f}\n"
-        f"Sexy: {result.get('sexy', 0):.2f}\n\n"
+        f"Drawings: {escnum(result.get('drawings', 0))}\n"
+        f"Neutral: {escnum(result.get('neutral', 0))}\n"
+        f"Porn: {escnum(result.get('porn', 0))}\n"
+        f"Hentai: {escnum(result.get('hentai', 0))}\n"
+        f"Sexy: {escnum(result.get('sexy', 0))}\n\n"
         f"Chat ID: {chat_id}\n"
         f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
     )
     return msg
 
-# ... (rest of your functions remain unchanged)
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
     if update.message.from_user.id != OWNER_ID:
