@@ -5,24 +5,22 @@ from typing import List
 from telegram import Update, Chat
 from telegram.constants import ChatType
 from telegram.ext import ContextTypes
-from database import db
+
+from database.mongodb import get_recipients_for_broadcast
 
 logger = logging.getLogger(__name__)
 
 # --- SUDO USER MANAGEMENT ---
-# Try to import SUDO_USERS from config, fallback to hardcoded value.
 try:
-    from config import SUDO_USERS  # Prefer from config for production
+    from config import SUDO_USERS
 except ImportError:
     SUDO_USERS = [7875192045]  # Replace with your own Telegram user IDs
 
 async def get_broadcast_recipients() -> List[int]:
     """
     Fetch all user_ids who have started the bot.
-    Extend this to filter out banned/deactivated users if needed.
     """
-    users = await db._execute("SELECT user_id FROM users WHERE started_bot = 1")
-    return [uid for (uid,) in users] if users else []
+    return await get_recipients_for_broadcast("all")
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
