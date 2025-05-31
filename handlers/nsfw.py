@@ -16,7 +16,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
 from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
-# Fix Windows console encoding for emojis
 if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -38,18 +37,12 @@ logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
 def escape_md(text: str) -> str:
-    """
-    Escape Telegram MarkdownV2 special characters in user-supplied fields or numbers.
-    """
     if not text:
         return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
 def escape_md_template(text: str) -> str:
-    """
-    Escape MarkdownV2 reserved characters in static template lines.
-    """
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
@@ -110,7 +103,6 @@ def extract_video_frame(video_path: str) -> Optional[str]:
         return None
 
 async def handle_media(update: Update, context: CallbackContext) -> None:
-    """Main media handling function"""
     if not update.message or not update.message.from_user:
         return
 
@@ -118,7 +110,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
     chat_id = update.message.chat_id
 
     try:
-        # Skip for OWNER or approved user
         if user.id == OWNER_ID or await is_approved(user.id):
             return
     except Exception as e:
@@ -129,7 +120,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
     processed_path: Optional[str] = None
 
     try:
-        # Handle different media types
         if update.message.photo:
             file = update.message.photo[-1]
             file_extension = ".jpg"
@@ -160,7 +150,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
         if not hasattr(file, "file_id"):
             return
 
-        # Download file
         original_path = os.path.join(MEDIA_DIR, f"{user.id}_{file.file_id}{file_extension}")
         file_obj = await context.bot.get_file(file.file_id)
         await file_obj.download_to_drive(original_path)
@@ -170,7 +159,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text("❌ Failed to download media.")
             return
 
-        # Process based on media type
         if update.message.video:
             processed_path = extract_video_frame(original_path)
         elif update.message.sticker:
@@ -188,7 +176,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text("❌ Failed to process media for NSFW scan.")
             return
 
-        # NSFW Detection (assume sync, change to 'await' if async)
         result = detect_nsfw(processed_path)
         if not result:
             logger.info("No NSFW content detected")
@@ -217,7 +204,6 @@ async def handle_nsfw_violation(
     result: Dict[str, float],
     max_category: str,
 ) -> None:
-    """Handle NSFW violation with proper error handling"""
     try:
         try:
             await update.message.delete()
@@ -261,12 +247,6 @@ async def handle_nsfw_violation(
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
 def format_user_alert(user, result):
-    """
-    Format the user alert message for Telegram MarkdownV2.
-    Name (mention), then username, then id.
-    User fields and numbers are safely escaped for MarkdownV2.
-    Static lines are also escaped.
-    """
     first_name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
     user_id = escape_md(str(user.id))
@@ -297,10 +277,6 @@ def format_user_alert(user, result):
     return '\n'.join(lines)
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    """
-    Format the admin alert message using MarkdownV2.
-    All static lines and numbers are escaped.
-    """
     first_name = escape_md(user.first_name)
     last_name = escape_md(user.last_name) if user.last_name else ""
     username = f"@{escape_md(user.username)}" if user.username else "None"
