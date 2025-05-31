@@ -37,14 +37,12 @@ from .predict import detect_nsfw
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-def escape_md(text: str) -> str:
+def escape_md_template(text: str) -> str:
     """
-    Escape Telegram MarkdownV2 special characters in user-supplied fields or numbers.
+    Escape MarkdownV2 reserved characters in static template lines.
     """
-    if not text:
-        return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
@@ -287,31 +285,33 @@ def format_user_alert(user, result):
     return msg
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    """
-    Format the admin alert message using MarkdownV2.
-    Only user fields and numbers are escaped!
-    """
     first_name = escape_md(user.first_name)
     last_name = escape_md(user.last_name) if user.last_name else ""
     username = f"@{escape_md(user.username)}" if user.username else "None"
     def escnum(val):
         return escape_md(f"{val:.2f}")
-    msg = (
-        "🚨 NSFW DETECTED 🔞\n\n"
-        f"User: {user.id}\n"
-        f"Username: {username}\n"
-        f"First Name: {first_name}\n"
-        f"Last Name: {last_name}\n\n"
-        "Detection Scores:\n"
-        f"Drawings: {escnum(result.get('drawings', 0))}\n"
-        f"Neutral: {escnum(result.get('neutral', 0))}\n"
-        f"Porn: {escnum(result.get('porn', 0))}\n"
-        f"Hentai: {escnum(result.get('hentai', 0))}\n"
-        f"Sexy: {escnum(result.get('sexy', 0))}\n\n"
-        f"Chat ID: {chat_id}\n"
+
+    lines = [
+        "🚨 NSFW DETECTED 🔞",
+        "",
+        f"User: {user.id}",
+        f"Username: {username}",
+        f"First Name: {first_name}",
+        f"Last Name: {last_name}",
+        "",
+        "Detection Scores:",
+        f"Drawings: {escnum(result.get('drawings', 0))}",
+        f"Neutral: {escnum(result.get('neutral', 0))}",
+        f"Porn: {escnum(result.get('porn', 0))}",
+        f"Hentai: {escnum(result.get('hentai', 0))}",
+        f"Sexy: {escnum(result.get('sexy', 0))}",
+        "",
+        f"Chat ID: {chat_id}",
         f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
-    )
-    return msg
+    ]
+    # Escape all lines EXCEPT those containing [markdown links](...)!
+    lines = [escape_md_template(line) if not ("[" in line and "](" in line) else line for line in lines]
+    return '\n'.join(lines)
 
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
