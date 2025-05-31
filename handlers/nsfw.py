@@ -23,7 +23,9 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 from config import OWNER_ID, ALERT_CHANNEL_ID, MEDIA_DIR
-from database import (
+
+# --- FIX: Use MongoDB backend ---
+from database.mongodb import (
     is_approved,
     update_violations,
     add_approved_user,
@@ -106,11 +108,9 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
     user = update.message.from_user
     chat_id = update.message.chat_id
 
-    if user.id == OWNER_ID:
-        return
-
     try:
-        if await is_approved(user.id):
+        # Skip for OWNER or approved user
+        if user.id == OWNER_ID or await is_approved(user.id):
             return
     except Exception as e:
         logger.error(f"Failed to check approval status: {e}", exc_info=True)
