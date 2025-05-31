@@ -440,6 +440,10 @@ async def get_broadcast_stats(broadcast_id: Union[str, ObjectId]) -> Dict[str, A
         "deliveries": deliveries
     }
 
+async def get_all_group_ids() -> list[int]:
+    cursor = groups_col.find({}, {"group_id": 1})
+    return [doc["group_id"] async for doc in cursor]
+
 # --- BACKUP ---
 # Use mongodump/mongorestore for MongoDB backups.
 
