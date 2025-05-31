@@ -38,11 +38,17 @@ from .predict import detect_nsfw
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-def escape_md(text: Optional[str]) -> str:
-    """Escape all MarkdownV2 special characters."""
+import re
+
+def escape_md(text: str) -> str:
+    """
+    Escape Telegram MarkdownV2 special characters.
+    Use ONLY on user-supplied fields, NOT on full lines with Markdown syntax.
+    """
     if not text:
         return ""
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
@@ -253,18 +259,22 @@ async def handle_nsfw_violation(
     except Exception as e:
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
-def format_user_alert(user: User, result: dict) -> str:
-    """Format the user alert message using MarkdownV2 with correct order and mention."""
-    def escape_md(text: str) -> str:
-        """Escape MarkdownV2 special characters in a string."""
-        escape_chars = r"_*[]()~`>#+-=|{}.!"
-        return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
-    
+def format_user_alert(user, result):
+    """
+    Format the user alert message for Telegram MarkdownV2.
+    Name (mention), then username, then id.
+    Only user fields are escaped for MarkdownV2; formatting is not escaped.
+    """
     first_name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
     user_id = str(user.id)
     mention = f"[{first_name}](tg://user?id={user.id})"
-
+    drawings = result.get('drawings', 0)
+    neutral = result.get('neutral', 0)
+    porn = result.get('porn', 0)
+    hentai = result.get('hentai', 0)
+    sexy = result.get('sexy', 0)
+    
     msg = (
         "╭─────────────────\n"
         "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
@@ -273,11 +283,11 @@ def format_user_alert(user: User, result: dict) -> str:
         f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}\n"
         f"│➺𝚄𝚜𝚎𝚛: {user_id}\n"
         "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
-        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}\n"
-        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}\n"
-        f"│➺𝙿𝚘𝚛𝚗: {result.get('porn', 0):.2f}\n"
-        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {result.get('hentai', 0):.2f}\n"
-        f"│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}\n"
+        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {drawings:.2f}\n"
+        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {neutral:.2f}\n"
+        f"│➺𝙿𝚘𝚛𝚗: {porn:.2f}\n"
+        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {hentai:.2f}\n"
+        f"│➺𝚂𝚎𝚡𝚢: {sexy:.2f}\n"
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
     return msg
