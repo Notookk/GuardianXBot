@@ -11,12 +11,11 @@ import imageio
 import cv2
 import re
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
 from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
-# Fix Windows console encoding for emojis
 if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -46,6 +45,12 @@ def escape_md(text: str) -> str:
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
+def escape_md_template(text: str) -> str:
+    """
+    Escape MarkdownV2 reserved characters in static template lines.
+    """
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
@@ -140,7 +145,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
                 file_extension = ".webp"
         elif update.message.document:
             file = update.message.document
-            # Only allow certain document types
             if file.mime_type and file.mime_type.startswith("image/"):
                 file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".jpg"
             elif file.mime_type and file.mime_type.startswith("video/"):
@@ -197,7 +201,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
         logger.error(f"Media handling error: {e}", exc_info=True)
         await update.message.reply_text("❌ An error occurred during NSFW scanning.")
     finally:
-        # Cleanup files
         for path in [original_path, processed_path]:
             try:
                 if path and os.path.exists(path):
@@ -261,6 +264,7 @@ def format_user_alert(user, result):
     Format the user alert message for Telegram MarkdownV2.
     Name (mention), then username, then id.
     User fields and numbers are safely escaped for MarkdownV2.
+    Static lines are also escaped.
     """
     first_name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
@@ -270,53 +274,58 @@ def format_user_alert(user, result):
     def escnum(val):
         return escape_md(f"{val:.2f}")
 
-    msg = (
-        "╭─────────────────\n"
-        "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
-        "╭✠╼━━━━━━❖━━━━━━━✠╮ \n"
-        f"│➺𝙽𝚊𝚖𝚎: {mention}\n"
-        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}\n"
-        f"│➺𝚄𝚜𝚎𝚛: {user_id}\n"
-        "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
-        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {escnum(result.get('drawings', 0))}\n"
-        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {escnum(result.get('neutral', 0))}\n"
-        f"│➺𝙿𝚘𝚛𝚗: {escnum(result.get('porn', 0))}\n"
-        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {escnum(result.get('hentai', 0))}\n"
-        f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}\n"
+    lines = [
+        "╭─────────────────",
+        "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞",
+        "╭✠╼━━━━━━❖━━━━━━━✠╮ ",
+        f"│➺𝙽𝚊𝚖𝚎: {mention}",
+        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}",
+        f"│➺𝚄𝚜𝚎𝚛: {user_id}",
+        "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:",
+        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {escnum(result.get('drawings', 0))}",
+        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {escnum(result.get('neutral', 0))}",
+        f"│➺𝙿𝚘𝚛𝚗: {escnum(result.get('porn', 0))}",
+        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {escnum(result.get('hentai', 0))}",
+        f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}",
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
-    )
-    return msg
-
-def escape_md_template(text: str) -> str:
-    """
-    Escape MarkdownV2 reserved characters in static template lines.
-    """
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
+    ]
+    lines = [
+        escape_md_template(line) if not ("[" in line and "](" in line) else line
+        for line in lines
+    ]
+    return '\n'.join(lines)
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
+    """
+    Format the admin alert message using MarkdownV2.
+    All static lines and numbers are escaped.
+    """
     first_name = escape_md(user.first_name)
     last_name = escape_md(user.last_name) if user.last_name else ""
     username = f"@{escape_md(user.username)}" if user.username else "None"
     def escnum(val):
         return escape_md(f"{val:.2f}")
-    msg = (
-        "🚨 NSFW DETECTED 🔞\n\n"
-        f"User: {user.id}\n"
-        f"Username: {username}\n"
-        f"First Name: {first_name}\n"
-        f"Last Name: {last_name}\n\n"
-        "Detection Scores:\n"
-        f"Drawings: {escnum(result.get('drawings', 0))}\n"
-        f"Neutral: {escnum(result.get('neutral', 0))}\n"
-        f"Porn: {escnum(result.get('porn', 0))}\n"
-        f"Hentai: {escnum(result.get('hentai', 0))}\n"
-        f"Sexy: {escnum(result.get('sexy', 0))}\n\n"
-        f"Chat ID: {chat_id}\n"
-        f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
-    )
-    return msg
 
+    lines = [
+        "🚨 NSFW DETECTED 🔞",
+        "",
+        f"User: {user.id}",
+        f"Username: {username}",
+        f"First Name: {first_name}",
+        f"Last Name: {last_name}",
+        "",
+        "Detection Scores:",
+        f"Drawings: {escnum(result.get('drawings', 0))}",
+        f"Neutral: {escnum(result.get('neutral', 0))}",
+        f"Porn: {escnum(result.get('porn', 0))}",
+        f"Hentai: {escnum(result.get('hentai', 0))}",
+        f"Sexy: {escnum(result.get('sexy', 0))}",
+        "",
+        f"Chat ID: {chat_id}",
+        f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
+    ]
+    lines = [escape_md_template(line) for line in lines]
+    return '\n'.join(lines)
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
     if update.message.from_user.id != OWNER_ID:
