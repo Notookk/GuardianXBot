@@ -43,11 +43,11 @@ async def main():
 
     # Only scan media messages (photo, video, sticker, document: image/video)
     media_filter = (
-        filters.PHOTO
-        | filters.VIDEO
-        | filters.STICKER
-        | filters.Document.IMAGE
-        | filters.Document.VIDEO
+    filters.PHOTO
+    | filters.VIDEO
+    | filters.Sticker.ALL
+    | filters.Document.IMAGE
+    | filters.Document.VIDEO
     )
     application.add_handler(MessageHandler(media_filter, handle_media))
 
