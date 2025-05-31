@@ -1,14 +1,17 @@
-# mongodb+srv://guardian:<db_password>@cluster0.thn0z3g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 # database/mongodb.py
+
+import os
 import motor.motor_asyncio
+from bson import ObjectId
 from datetime import datetime
 from typing import List, Tuple, Dict, Optional, Union, Any
 
-MONGODB_URL = "mongodb+srv://guardian:guardian@cluster0.thn0z3g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # Update if needed
+# --- Secure MongoDB URI ---
+MONGODB_URL = "mongodb+srv://guardian:guardian@cluster0.thn0z3g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URL)
 db = client["guardianxbot"]
 
-# Collections
+# --- Collections ---
 users_col = db["users"]
 approved_col = db["approved_users"]
 violations_col = db["user_violations"]
@@ -19,7 +22,7 @@ start_events_col = db["bot_start_events"]
 broadcasts_col = db["broadcast_messages"]
 deliveries_col = db["broadcast_deliveries"]
 
-# Constants for broadcast statuses and targets
+# --- Broadcast Constants ---
 BROADCAST_STATUS_PENDING = "pending"
 BROADCAST_STATUS_PROCESSING = "processing"
 BROADCAST_STATUS_COMPLETED = "completed"
@@ -27,6 +30,21 @@ BROADCAST_STATUS_FAILED = "failed"
 BROADCAST_TARGET_ALL = "all"
 BROADCAST_TARGET_APPROVED = "approved"
 BROADCAST_TARGET_GROUP = "group"
+
+# --- Index Creation ---
+async def ensure_indexes():
+    """Create indexes for collections (call once at startup)."""
+    await users_col.create_index("user_id", unique=True)
+    await approved_col.create_index("user_id", unique=True)
+    await violations_col.create_index([("user_id", 1), ("category", 1)], unique=True)
+    await groups_col.create_index("group_id", unique=True)
+    await memberships_col.create_index([("user_id", 1), ("group_id", 1)], unique=True)
+    await broadcasts_col.create_index("status")
+    await alerts_col.create_index("timestamp")
+
+# --- Client Closing (Call on shutdown) ---
+def close_client():
+    client.close()
 
 # --- USERS ---
 
@@ -36,6 +54,7 @@ async def upsert_user(
     first_name: Optional[str] = None,
     last_name: Optional[str] = None
 ) -> None:
+    """Insert or update user info."""
     doc = {
         "user_id": user_id,
         "username": username,
@@ -50,6 +69,7 @@ async def upsert_user(
     )
 
 async def get_user_info(user_id: int) -> Optional[Dict[str, Any]]:
+    """Get user info as dict, or None if user not found."""
     doc = await users_col.find_one({"user_id": user_id})
     if doc:
         return {
@@ -67,9 +87,11 @@ async def get_user_info(user_id: int) -> Optional[Dict[str, Any]]:
 # --- APPROVED USERS ---
 
 async def is_approved(user_id: int) -> bool:
+    """Return True if user is approved."""
     return await approved_col.find_one({"user_id": user_id}) is not None
 
 async def add_approved_user(user_id: int, added_by: Optional[int] = None) -> None:
+    """Add a user to approved list."""
     await approved_col.update_one(
         {"user_id": user_id},
         {"$set": {
@@ -81,9 +103,11 @@ async def add_approved_user(user_id: int, added_by: Optional[int] = None) -> Non
     )
 
 async def remove_approved_user(user_id: int) -> None:
+    """Remove a user from approved list."""
     await approved_col.delete_one({"user_id": user_id})
 
 async def get_all_approved_users() -> List[Dict[str, Any]]:
+    """List all approved users, newest first."""
     users = []
     async for doc in approved_col.find({}).sort("date_added", -1):
         users.append({
@@ -96,34 +120,38 @@ async def get_all_approved_users() -> List[Dict[str, Any]]:
 # --- VIOLATIONS ---
 
 async def update_violations(user_id: int, category: str) -> None:
+    """Increment violation counters for a user and category."""
     now = datetime.utcnow()
-    # Ensure user exists
     await users_col.update_one(
         {"user_id": user_id},
         {"$setOnInsert": {"user_id": user_id, "violation_count": 0}},
         upsert=True
     )
-    # Upsert violation
     await violations_col.update_one(
         {"user_id": user_id, "category": category},
         {"$inc": {"count": 1}, "$set": {"last_updated": now}},
         upsert=True
     )
-    # Total user violation count
     await users_col.update_one(
         {"user_id": user_id},
         {"$inc": {"violation_count": 1}}
     )
 
-async def get_user_violations(user_id: int) -> List[Tuple[str, int, datetime]]:
+async def get_user_violations(user_id: int) -> List[Dict[str, Any]]:
+    """Return list of dicts for each violation category."""
     result = []
     async for doc in violations_col.find({"user_id": user_id}):
-        result.append((doc["category"], doc["count"], doc.get("last_updated")))
+        result.append({
+            "category": doc["category"],
+            "count": doc["count"],
+            "last_updated": doc.get("last_updated")
+        })
     return result
 
 # --- ALERTS ---
 
 async def log_alert(user_id: int, category: str, message: str) -> None:
+    """Log a user alert."""
     await alerts_col.insert_one({
         "user_id": user_id,
         "category": category,
@@ -132,6 +160,7 @@ async def log_alert(user_id: int, category: str, message: str) -> None:
     })
 
 async def get_recent_alerts(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return recent alerts, joined with username if available."""
     cursor = alerts_col.aggregate([
         {"$sort": {"timestamp": -1}},
         {"$limit": limit},
@@ -158,6 +187,7 @@ async def get_recent_alerts(limit: int = 10) -> List[Dict[str, Any]]:
 # --- BOT START EVENTS ---
 
 async def record_bot_start(user_id: int, referral_source: Optional[str] = None) -> None:
+    """Log a user start event and mark user as started."""
     now = datetime.utcnow()
     await start_events_col.insert_one({
         "user_id": user_id,
@@ -173,8 +203,8 @@ async def record_bot_start(user_id: int, referral_source: Optional[str] = None) 
 # --- GROUPS ---
 
 async def record_group_join(user_id: int, group_id: int, group_title: str) -> None:
+    """Log a user joining a group and update member count."""
     now = datetime.utcnow()
-    # Insert group if not exists
     await groups_col.update_one(
         {"group_id": group_id},
         {"$setOnInsert": {
@@ -188,13 +218,11 @@ async def record_group_join(user_id: int, group_id: int, group_title: str) -> No
         },
         upsert=True
     )
-    # Add/activate membership
     await memberships_col.update_one(
         {"user_id": user_id, "group_id": group_id},
         {"$set": {"is_active": True, "last_active": now}, "$setOnInsert": {"join_date": now}},
         upsert=True
     )
-    # Update group member count
     count = await memberships_col.count_documents({"group_id": group_id, "is_active": True})
     await groups_col.update_one(
         {"group_id": group_id},
@@ -202,6 +230,7 @@ async def record_group_join(user_id: int, group_id: int, group_title: str) -> No
     )
 
 async def record_group_leave(user_id: int, group_id: int) -> None:
+    """Log a user leaving a group and update member count."""
     now = datetime.utcnow()
     await memberships_col.update_one(
         {"user_id": user_id, "group_id": group_id},
@@ -214,6 +243,7 @@ async def record_group_leave(user_id: int, group_id: int) -> None:
     )
 
 async def get_user_groups(user_id: int) -> List[Dict[str, Any]]:
+    """List all groups the user is a member of."""
     cursor = memberships_col.aggregate([
         {"$match": {"user_id": user_id, "is_active": True}},
         {"$lookup": {
@@ -235,6 +265,7 @@ async def get_user_groups(user_id: int) -> List[Dict[str, Any]]:
     return results
 
 async def get_group_members(group_id: int) -> List[Dict[str, Any]]:
+    """List all active members of a group."""
     cursor = memberships_col.aggregate([
         {"$match": {"group_id": group_id, "is_active": True}},
         {"$lookup": {
@@ -260,6 +291,7 @@ async def get_group_members(group_id: int) -> List[Dict[str, Any]]:
 # --- USER ACTIVITY SUMMARY ---
 
 async def get_user_activity(user_id: int) -> Dict[str, Any]:
+    """Get full user activity summary."""
     user_info = await get_user_info(user_id)
     if not user_info:
         return {}
@@ -275,10 +307,7 @@ async def get_user_activity(user_id: int) -> Dict[str, Any]:
         "user_info": user_info,
         "start_events": start_events,
         "groups": groups,
-        "violations": [
-            {"category": v[0], "count": v[1], "last_updated": v[2]}
-            for v in violations
-        ]
+        "violations": violations
     }
 
 # --- BROADCAST SYSTEM ---
@@ -289,6 +318,7 @@ async def add_broadcast_message(
     target: str = BROADCAST_TARGET_ALL,
     group_id: Optional[int] = None
 ) -> Optional[str]:
+    """Create a new broadcast message and return its ID as string."""
     doc = {
         "message": message,
         "creator_id": creator_id,
@@ -304,6 +334,7 @@ async def add_broadcast_message(
     return str(result.inserted_id)
 
 async def get_pending_broadcasts(limit: int = 10) -> List[Dict[str, Any]]:
+    """List pending broadcasts."""
     cursor = broadcasts_col.find({"status": BROADCAST_STATUS_PENDING}).sort("created_at", 1).limit(limit)
     results = []
     async for doc in cursor:
@@ -318,11 +349,14 @@ async def get_pending_broadcasts(limit: int = 10) -> List[Dict[str, Any]]:
     return results
 
 async def update_broadcast_status(
-    broadcast_id: Union[str, Any],
+    broadcast_id: Union[str, ObjectId],
     status: str,
     sent_count: int = 0,
     failed_count: int = 0
 ) -> None:
+    """Update status (and optionally stats) for a broadcast."""
+    if isinstance(broadcast_id, str):
+        broadcast_id = ObjectId(broadcast_id)
     completed_at = datetime.utcnow() if status == BROADCAST_STATUS_COMPLETED else None
     await broadcasts_col.update_one(
         {"_id": broadcast_id},
@@ -335,6 +369,7 @@ async def update_broadcast_status(
     )
 
 async def get_recipients_for_broadcast(target: str, group_id: Optional[int] = None) -> List[int]:
+    """Get user_ids for a broadcast's target audience."""
     if target == BROADCAST_TARGET_ALL:
         cursor = users_col.find({"started_bot": True}, {"user_id": 1})
     elif target == BROADCAST_TARGET_APPROVED:
@@ -346,11 +381,14 @@ async def get_recipients_for_broadcast(target: str, group_id: Optional[int] = No
     return [doc["user_id"] async for doc in cursor]
 
 async def log_broadcast_delivery(
-    broadcast_id: Union[str, Any],
+    broadcast_id: Union[str, ObjectId],
     user_id: int,
     status: str,
     error: Optional[str] = None
 ) -> None:
+    """Log delivery status for a broadcast/user."""
+    if isinstance(broadcast_id, str):
+        broadcast_id = ObjectId(broadcast_id)
     await deliveries_col.insert_one({
         "broadcast_id": broadcast_id,
         "user_id": user_id,
@@ -359,7 +397,10 @@ async def log_broadcast_delivery(
         "delivered_at": datetime.utcnow()
     })
 
-async def get_broadcast_stats(broadcast_id: Union[str, Any]) -> Dict[str, Any]:
+async def get_broadcast_stats(broadcast_id: Union[str, ObjectId]) -> Dict[str, Any]:
+    """Get statistics for a broadcast."""
+    if isinstance(broadcast_id, str):
+        broadcast_id = ObjectId(broadcast_id)
     doc = await broadcasts_col.find_one({"_id": broadcast_id})
     if not doc:
         return {}
@@ -379,25 +420,17 @@ async def get_broadcast_stats(broadcast_id: Union[str, Any]) -> Dict[str, Any]:
     }
 
 # --- BACKUP ---
-
-# MongoDB backup is typically handled with 'mongodump'; you may write an adapter if you want.
+# Use mongodump/mongorestore for MongoDB backups.
 
 __all__ = [
-    # User management
     "upsert_user", "get_user_info",
-    # Approved users
     "is_approved", "add_approved_user", "remove_approved_user", "get_all_approved_users",
-    # Violations
     "update_violations", "get_user_violations",
-    # Alerts
     "log_alert", "get_recent_alerts",
-    # Bot start events
     "record_bot_start",
-    # Groups
     "record_group_join", "record_group_leave", "get_user_groups", "get_group_members",
-    # User summary
     "get_user_activity",
-    # Broadcasts
     "add_broadcast_message", "get_pending_broadcasts", "update_broadcast_status",
     "get_recipients_for_broadcast", "log_broadcast_delivery", "get_broadcast_stats",
+    "ensure_indexes", "close_client"
 ]
