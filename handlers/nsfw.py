@@ -39,6 +39,7 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 def escape_md(text: str) -> str:
     if not text:
         return ""
+    # Escape all MarkdownV2 reserved characters INCLUDING '.'
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
@@ -303,6 +304,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
     ]
     lines = [escape_md_template(line) for line in lines]
     return '\n'.join(lines)
+    
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
     if update.message.from_user.id != OWNER_ID:
