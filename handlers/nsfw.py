@@ -1,23 +1,19 @@
 import os
+import sys
 import logging
 import tempfile
 import zipfile
 import json
 import base64
-import sys
 import numpy as np
 from PIL import Image
 import imageio
+import cv2
+import re
+
 from typing import Optional, Dict, List
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    CallbackContext,
-    ContextTypes,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
+from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
 # Fix Windows console encoding for emojis
@@ -26,10 +22,8 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# Local imports
-from config import TOKEN, OWNER_ID, ALERT_CHANNEL_ID, MEDIA_DIR
+from config import OWNER_ID, ALERT_CHANNEL_ID, MEDIA_DIR
 from database import (
-    Database,
     is_approved,
     update_violations,
     add_approved_user,
@@ -39,84 +33,69 @@ from database import (
 )
 from .predict import detect_nsfw
 
-# Initialize database and media directory
-db = Database()
+logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("nsfw_bot.log", encoding='utf-8'),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
-logger = logging.getLogger(__name__)
+def escape_md(text: Optional[str]) -> str:
+    """Escape MarkdownV2 special characters."""
+    if not text:
+        return ""
+    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
     def convert_webp_to_png(file_path: str) -> Optional[str]:
-        """Convert WebP to PNG"""
         try:
-            png_path = f"{tempfile.mktemp()}.png"
-            with Image.open(file_path) as img:
-                img.convert("RGB").save(png_path, "PNG")
-            return png_path
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                with Image.open(file_path) as img:
+                    img.convert("RGB").save(tmp.name, "PNG")
+                return tmp.name
         except Exception as e:
             logger.error(f"WebP conversion failed: {e}", exc_info=True)
             return None
 
     @staticmethod
     def extract_frame_from_webm(input_path: str) -> Optional[str]:
-        """Extract frame from WebM"""
         try:
-            output_path = f"{tempfile.mktemp()}.jpg"
-            with imageio.get_reader(input_path, format="webm") as reader:
-                frame = reader.get_next_data()
-                imageio.imwrite(output_path, np.array(frame, dtype=np.uint8), format="JPEG")
-            return output_path
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                with imageio.get_reader(input_path, format="webm") as reader:
+                    frame = reader.get_next_data()
+                    imageio.imwrite(tmp.name, np.array(frame, dtype=np.uint8), format="JPEG")
+                return tmp.name
         except Exception as e:
             logger.error(f"WEBM frame extraction failed: {e}", exc_info=True)
             return None
 
     @staticmethod
     def convert_tgs_to_png(file_path: str) -> Optional[str]:
-        """Convert TGS to PNG using pure Python"""
         try:
             with zipfile.ZipFile(file_path, 'r') as z:
                 with z.open('animation.json') as f:
                     animation_data = json.load(f)
-            
-            output_path = f"{tempfile.mktemp()}.png"
-            
-            for asset in animation_data.get('assets', []):
-                if 'p' in asset:
-                    img_data = base64.b64decode(asset['p'].split(',')[1])
-                    with open(output_path, 'wb') as f:
-                        f.write(img_data)
-                    return output_path
-            
-            Image.new('RGB', (512, 512), (255, 255, 255)).save(output_path)
-            return output_path
-            
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                for asset in animation_data.get('assets', []):
+                    if 'p' in asset:
+                        img_data = base64.b64decode(asset['p'].split(',')[1])
+                        with open(tmp.name, 'wb') as f:
+                            f.write(img_data)
+                        return tmp.name
+                Image.new('RGB', (512, 512), (255, 255, 255)).save(tmp.name)
+                return tmp.name
         except Exception as e:
             logger.error(f"TGS conversion failed: {e}", exc_info=True)
             return None
 
-import cv2
-
 def extract_video_frame(video_path: str) -> Optional[str]:
     try:
-        output_path = f"{tempfile.mktemp()}.jpg"
-        vidcap = cv2.VideoCapture(video_path)
-        success, image = vidcap.read()
-        if success:
-            cv2.imwrite(output_path, image)
-            return output_path
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            vidcap = cv2.VideoCapture(video_path)
+            success, image = vidcap.read()
+            if success:
+                cv2.imwrite(tmp.name, image)
+                return tmp.name
         return None
     except Exception as e:
-        logger.error(f"OpenCV frame extraction failed: {e}")
+        logger.error(f"OpenCV frame extraction failed: {e}", exc_info=True)
         return None
 
 async def handle_media(update: Update, context: CallbackContext) -> None:
@@ -130,16 +109,20 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
     if user.id == OWNER_ID:
         return
 
-    if await is_approved(user.id):
+    try:
+        if await is_approved(user.id):
+            return
+    except Exception as e:
+        logger.error(f"Failed to check approval status: {e}", exc_info=True)
         return
 
-    original_path = None
-    processed_path = None
-    
+    original_path: Optional[str] = None
+    processed_path: Optional[str] = None
+
     try:
         # Handle different media types
         if update.message.photo:
-            file = update.message.photo[-1]  # Get highest resolution
+            file = update.message.photo[-1]
             file_extension = ".jpg"
         elif update.message.video:
             file = update.message.video
@@ -154,25 +137,33 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
                 file_extension = ".webp"
         elif update.message.document:
             file = update.message.document
-            file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ""
+            # Only allow certain document types
+            if file.mime_type and file.mime_type.startswith("image/"):
+                file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".jpg"
+            elif file.mime_type and file.mime_type.startswith("video/"):
+                file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".mp4"
+            else:
+                await update.message.reply_text("❌ Unsupported document type for NSFW scanning.")
+                return
         else:
-            return  # Unsupported media type
+            await update.message.reply_text("❌ Unsupported media type.")
+            return
 
         if not hasattr(file, "file_id"):
             return
 
         # Download file
-        file_obj = await context.bot.get_file(file.file_id)
         original_path = os.path.join(MEDIA_DIR, f"{user.id}_{file.file_id}{file_extension}")
+        file_obj = await context.bot.get_file(file.file_id)
         await file_obj.download_to_drive(original_path)
 
         if not os.path.exists(original_path):
             logger.error(f"Download failed: {original_path}")
+            await update.message.reply_text("❌ Failed to download media.")
             return
 
         # Process based on media type
         if update.message.video:
-            # Extract frame from video
             processed_path = extract_video_frame(original_path)
         elif update.message.sticker:
             if file.is_animated:
@@ -182,14 +173,14 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
             else:
                 processed_path = MediaConverter.convert_webp_to_png(original_path)
         else:
-            # For photos and documents, use the original file
             processed_path = original_path
 
         if not processed_path or not os.path.exists(processed_path):
             logger.error(f"Processing failed for {original_path}")
+            await update.message.reply_text("❌ Failed to process media for NSFW scan.")
             return
 
-        # NSFW Detection
+        # NSFW Detection (assume sync, change to 'await' if async)
         result = detect_nsfw(processed_path)
         if not result:
             logger.info("No NSFW content detected")
@@ -201,6 +192,7 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
 
     except Exception as e:
         logger.error(f"Media handling error: {e}", exc_info=True)
+        await update.message.reply_text("❌ An error occurred during NSFW scanning.")
     finally:
         # Cleanup files
         for path in [original_path, processed_path]:
@@ -208,12 +200,12 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
                 if path and os.path.exists(path):
                     os.remove(path)
             except Exception as e:
-                logger.warning(f"Cleanup failed for {path}: {e}")
+                logger.warning(f"Cleanup failed for {path}: {e}", exc_info=True)
 
 async def handle_nsfw_violation(
     update: Update,
     context: CallbackContext,
-    user,
+    user: User,
     chat_id: int,
     result: Dict[str, float],
     max_category: str,
@@ -223,7 +215,7 @@ async def handle_nsfw_violation(
         try:
             await update.message.delete()
         except BadRequest as e:
-            logger.warning(f"Couldn't delete message: {e}")
+            logger.warning(f"Couldn't delete message: {e}", exc_info=True)
 
         await update_violations(user.id, max_category)
 
@@ -234,10 +226,10 @@ async def handle_nsfw_violation(
             await context.bot.send_message(
                 chat_id,
                 user_alert,
-                parse_mode="Markdown"
+                parse_mode="MarkdownV2"
             )
         except BadRequest as e:
-            logger.warning(f"Couldn't send user alert: {e}")
+            logger.warning(f"Couldn't send user alert: {e}", exc_info=True)
 
         try:
             await context.bot.send_message(
@@ -246,59 +238,57 @@ async def handle_nsfw_violation(
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("👤 View Profile", url=f"tg://user?id={user.id}")]
                 ]),
-                parse_mode="Markdown"
+                parse_mode="MarkdownV2"
             )
         except BadRequest as e:
             if "Button_user_privacy_restricted" in str(e):
                 await context.bot.send_message(
                     ALERT_CHANNEL_ID,
                     admin_alert,
-                    parse_mode="Markdown"
+                    parse_mode="MarkdownV2"
                 )
             else:
-                raise
+                logger.error(f"Admin alert failed: {e}", exc_info=True)
 
     except Exception as e:
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
-def format_user_alert(user, result: Dict[str, float]) -> str:
-    """Format the user alert message"""
-    return f"""
-╭─────────────────
-╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞
-╭✠╼━━━━━━❖━━━━━━━✠╮ 
-│➺𝚄𝚜𝚎𝚛: {user.id}
-│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{user.username or 'None'}
-│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:
-│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}
-│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}
-│➺𝙿𝚘𝚛𝚗: {result.get('porn', 0):.2f}
-│➺𝙷𝚎𝚗𝚝𝚊𝚒: {result.get('hentai', 0):.2f}
-│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}
-╰✠╼━━━━━━❖━━━━━━━✠╯"""
+def format_user_alert(user: User, result: Dict[str, float]) -> str:
+    """Format the user alert message using MarkdownV2."""
+    return (
+        "╭─────────────────\n"
+        "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
+        "╭✠╼━━━━━━❖━━━━━━━✠╮ \n"
+        f"│➺𝚄𝚜𝚎𝚛: <code>{escape_md(str(user.id))}</code>\n"
+        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{escape_md(user.username) if user.username else 'None'}\n"
+        "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
+        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}\n"
+        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}\n"
+        f"│➺𝙿𝚘𝚛𝚗: {result.get('porn', 0):.2f}\n"
+        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {result.get('hentai', 0):.2f}\n"
+        f"│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}\n"
+        "╰✠╼━━━━━━❖━━━━━━━✠╯"
+    )
 
-def format_admin_alert(user, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    """Format the admin alert message"""
-    return f"""
-🚨 NSFW DETECTED 🔞
-
-User: {user.id}
-Username: @{user.username or 'None'}
-First Name: {user.first_name or 'None'}
-Last Name: {user.last_name or 'None'}
-
-Detection Scores:
-Drawings: {result.get('drawings', 0):.2f}
-Neutral: {result.get('neutral', 0):.2f}
-Porn: {result.get('porn', 0):.2f}
-Hentai: {result.get('hentai', 0):.2f}
-Sexy: {result.get('sexy', 0):.2f}
-
-Chat ID: {chat_id}
-Message ID: {update.message.message_id if update.message else 'N/A'}"""
+def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
+    """Format the admin alert message using MarkdownV2."""
+    return (
+        "🚨 NSFW DETECTED 🔞\n\n"
+        f"User: <code>{escape_md(str(user.id))}</code>\n"
+        f"Username: @{escape_md(user.username) if user.username else 'None'}\n"
+        f"First Name: {escape_md(user.first_name)}\n"
+        f"Last Name: {escape_md(user.last_name)}\n\n"
+        "Detection Scores:\n"
+        f"Drawings: {result.get('drawings', 0):.2f}\n"
+        f"Neutral: {result.get('neutral', 0):.2f}\n"
+        f"Porn: {result.get('porn', 0):.2f}\n"
+        f"Hentai: {result.get('hentai', 0):.2f}\n"
+        f"Sexy: {result.get('sexy', 0):.2f}\n\n"
+        f"Chat ID: <code>{escape_md(str(chat_id))}</code>\n"
+        f"Message ID: <code>{escape_md(str(update.message.message_id)) if update.message else 'N/A'}</code>"
+    )
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
-    """Add user to approved list"""
     if update.message.from_user.id != OWNER_ID:
         await update.message.reply_text("» ᴀᴡᴡ, ᴛʜɪs ɪs ɴᴏᴛ ғᴏʀ ʏᴏᴜ ʙᴀʙʏ.")
         return
@@ -315,7 +305,6 @@ async def add_approved(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text("❌ Invalid user ID. Must be a number.")
 
 async def remove_approved(update: Update, context: CallbackContext) -> None:
-    """Remove user from approved list"""
     if update.message.from_user.id != OWNER_ID:
         await update.message.reply_text("» ᴀᴡᴡ, ᴛʜɪs ɪs ɴᴏᴛ ғᴏʀ ʏᴏᴜ ʙᴀʙʏ.")
         return
@@ -332,7 +321,6 @@ async def remove_approved(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text("❌ Invalid user ID. Must be a number.")
 
 async def my_info(update: Update, context: CallbackContext) -> None:
-    """Show user's violation history"""
     user_id = update.message.from_user.id
     violations = await get_user_violations(user_id)
 
@@ -341,30 +329,27 @@ async def my_info(update: Update, context: CallbackContext) -> None:
         return
 
     try:
-        # Handle different violation data structures
-        if len(violations[0]) == 3:  # (category, count, timestamp)
-            response = "📊 **Your Violation History**\n" + "\n".join(
-                f"🔸 {cat}: {count} times (last: {timestamp.split()[0]})" 
+        if len(violations[0]) == 3:
+            response = "📊 *Your Violation History*\n" + "\n".join(
+                f"🔸 {escape_md(cat)}: {count} times (last: {escape_md(str(timestamp).split()[0])})"
                 for cat, count, timestamp in violations
             )
-        elif len(violations[0]) == 2:  # (category, count)
-            response = "📊 **Your Violation History**\n" + "\n".join(
-                f"🔸 {cat}: {count} times" 
+        elif len(violations[0]) == 2:
+            response = "📊 *Your Violation History*\n" + "\n".join(
+                f"🔸 {escape_md(cat)}: {count} times"
                 for cat, count in violations
             )
         else:
-            response = "📊 **Your Violation History**\n" + "\n".join(
-                f"🔸 {str(violation)}" 
+            response = "📊 *Your Violation History*\n" + "\n".join(
+                f"🔸 {escape_md(str(violation))}"
                 for violation in violations
             )
-        
-        await update.message.reply_text(response, parse_mode="Markdown")
+        await update.message.reply_text(response, parse_mode="MarkdownV2")
     except Exception as e:
-        logger.error(f"Error formatting violations: {e}")
+        logger.error(f"Error formatting violations: {e}", exc_info=True)
         await update.message.reply_text("❌ Could not retrieve violation history.")
 
 async def user_info(update: Update, context: CallbackContext) -> None:
-    """Show another user's violation history"""
     if not context.args:
         return await my_info(update, context)
 
@@ -376,53 +361,50 @@ async def user_info(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text(f"✅ User {user_id} has no violations.")
             return
 
-        # Handle different violation data structures
-        if len(violations[0]) == 3:  # (category, count, timestamp)
-            response = f"📊 **Violation History for {user_id}**\n" + "\n".join(
-                f"🔸 {cat}: {count} times (last: {timestamp.split()[0]})" 
+        if len(violations[0]) == 3:
+            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
+                f"🔸 {escape_md(cat)}: {count} times (last: {escape_md(str(timestamp).split()[0])})"
                 for cat, count, timestamp in violations
             )
-        elif len(violations[0]) == 2:  # (category, count)
-            response = f"📊 **Violation History for {user_id}**\n" + "\n".join(
-                f"🔸 {cat}: {count} times" 
+        elif len(violations[0]) == 2:
+            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
+                f"🔸 {escape_md(cat)}: {count} times"
                 for cat, count in violations
             )
         else:
-            response = f"📊 **Violation History for {user_id}**\n" + "\n".join(
-                f"🔸 {str(violation)}" 
+            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
+                f"🔸 {escape_md(str(violation))}"
                 for violation in violations
             )
-
-        await update.message.reply_text(response, parse_mode="Markdown")
+        await update.message.reply_text(response, parse_mode="MarkdownV2")
     except ValueError:
         await update.message.reply_text("❌ Invalid user ID. Must be a number.")
     except Exception as e:
-        logger.error(f"Error in user_info: {e}")
+        logger.error(f"Error in user_info: {e}", exc_info=True)
         await update.message.reply_text("❌ Could not retrieve user's violation history.")
 
 async def get_approved_users_list(update: Update, context: CallbackContext) -> None:
-    """List all approved users"""
     approved_users = await get_all_users()
     if not approved_users:
         await update.message.reply_text("❌ No approved users found.")
         return
 
     response = (
-        "✨ **Approved Users** ✨\n"
+        "✨ *Approved Users* ✨\n"
         "╭✠╼━━━━━━❖━━━━━━━✠╮\n"
     )
-    
+
     for user in approved_users:
         try:
             chat = await context.bot.get_chat(user['user_id'])
-            username = f"@{chat.username}" if chat.username else f"ID: {user['user_id']}"
-            response += f"\n{user['user_id']} - {username} (Added: {user['date_added']})"
+            username = f"@{escape_md(chat.username)}" if chat.username else f"ID: {escape_md(str(user['user_id']))}"
+            response += f"\n{escape_md(str(user['user_id']))} - {username} (Added: {escape_md(str(user['date_added']))})"
         except Exception as e:
-            logger.warning(f"Couldn't fetch user {user['user_id']}: {e}")
-            response += f"\n{user['user_id']} - [Unknown User] (Added: {user['date_added']})"
+            logger.warning(f"Couldn't fetch user {user['user_id']}: {e}", exc_info=True)
+            response += f"\n{escape_md(str(user['user_id']))} - [Unknown User] (Added: {escape_md(str(user['date_added']))})"
 
     response += (
         "\n╰✠╼━━━━━━❖━━━━━━━✠╯\n"
         f"💫 Total Approved: {len(approved_users)}"
     )
-    await update.message.reply_text(response, parse_mode="Markdown")
+    await update.message.reply_text(response, parse_mode="MarkdownV2")
