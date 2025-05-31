@@ -251,50 +251,46 @@ async def handle_nsfw_violation(
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
 def format_user_alert(user, result):
-    first_name = escape_md(user.first_name)
+    name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
     user_id = escape_md(str(user.id))
-    mention = f"[{first_name}](tg://user?id={user.id})"
 
     def escnum(val):
         return escape_md(f"{val:.2f}")
 
     lines = [
         "╭─────────────────",
-        "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞",
+        "╰──● NSFW DETECTED 🔞",
         "╭✠╼━━━━━━❖━━━━━━━✠╮ ",
-        f"│➺𝙽𝚊𝚖𝚎: {mention}",
-        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}",
-        f"│➺𝚄𝚜𝚎𝚛: {user_id}",
-        "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:",
-        f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {escnum(result.get('drawings', 0))}",
-        f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {escnum(result.get('neutral', 0))}",
-        f"│➺𝙿𝚘𝚛𝚗: {escnum(result.get('porn', 0))}",
-        f"│➺𝙷𝚎𝚗𝚝𝚊𝚒: {escnum(result.get('hentai', 0))}",
-        f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}",
+        f"│➺ Name: {name}",
+        f"│➺ Username: {username}",
+        f"│➺ User ID: {user_id}",
+        "│➺ Details:",
+        f"│➺ Drawings: {escnum(result.get('drawings', 0))}",
+        f"│➺ Neutral: {escnum(result.get('neutral', 0))}",
+        f"│➺ Porn: {escnum(result.get('porn', 0))}",
+        f"│➺ Hentai: {escnum(result.get('hentai', 0))}",
+        f"│➺ Sexy: {escnum(result.get('sexy', 0))}",
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     ]
-    # Escape all static lines but not markdown mentions
-    lines = [
-        escape_md_template(line) if not ("[" in line and "](" in line) else line
-        for line in lines
-    ]
+    lines = [escape_md_template(line) for line in lines]
     return '\n'.join(lines)
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    first_name = escape_md(user.first_name)
+    name = escape_md(user.first_name)
     last_name = escape_md(user.last_name) if user.last_name else ""
     username = f"@{escape_md(user.username)}" if user.username else "None"
+    user_id = escape_md(str(user.id))
     def escnum(val):
         return escape_md(f"{val:.2f}")
 
     lines = [
         "🚨 NSFW DETECTED 🔞",
         "",
-        f"User: {escape_md(str(user.id))}",
-        f"Username: {username}",
-        f"First Name: {first_name}",
+        f"Name: {name}",
         f"Last Name: {last_name}",
+        f"Username: {username}",
+        f"User ID: {user_id}",
         "",
         "Detection Scores:",
         f"Drawings: {escnum(result.get('drawings', 0))}",
@@ -306,7 +302,6 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"Chat ID: {escape_md(str(chat_id))}",
         f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
     ]
-    # Escape all lines (static/dynamic)
     lines = [escape_md_template(line) for line in lines]
     return '\n'.join(lines)
 
