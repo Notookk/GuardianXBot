@@ -1,5 +1,3 @@
-# database/mongodb.py
-
 import os
 import motor.motor_asyncio
 from bson import ObjectId
@@ -45,6 +43,23 @@ async def ensure_indexes():
 # --- Client Closing (Call on shutdown) ---
 def close_client():
     client.close()
+
+# --- USER EXISTENCE/INSERTION HELPERS ---
+
+async def user_exists(user_id: int) -> bool:
+    """Return True if user exists in users_col, False otherwise."""
+    return await users_col.find_one({"user_id": user_id}) is not None
+
+async def add_user_if_new(user_id: int) -> None:
+    """
+    Ensure user exists in the users collection.
+    No-op if already present.
+    """
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$setOnInsert": {"user_id": user_id}},
+        upsert=True
+    )
 
 # --- USERS ---
 
@@ -423,6 +438,7 @@ async def get_broadcast_stats(broadcast_id: Union[str, ObjectId]) -> Dict[str, A
 # Use mongodump/mongorestore for MongoDB backups.
 
 __all__ = [
+    "user_exists", "add_user_if_new",
     "upsert_user", "get_user_info",
     "is_approved", "add_approved_user", "remove_approved_user", "get_all_approved_users",
     "update_violations", "get_user_violations",
