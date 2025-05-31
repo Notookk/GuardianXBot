@@ -369,21 +369,16 @@ async def my_info(update: Update, context: CallbackContext) -> None:
         return
 
     try:
-        if len(violations[0]) == 3:
-            response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {cat}: {count} times (last: {str(timestamp).split()[0]})"
-                for cat, count, timestamp in violations
-            )
-        elif len(violations[0]) == 2:
-            response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {cat}: {count} times"
-                for cat, count in violations
-            )
-        else:
-            response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {str(violation)}"
-                for violation in violations
-            )
+        response = "📊 *Your Violation History*\n"
+        for v in violations:
+            cat = v.get("category", "Unknown")
+            count = v.get("count", 0)
+            last = v.get("last_updated")
+            if last:
+                response += f"🔸 {cat}: {count} times (last: {str(last).split()[0]})\n"
+            else:
+                response += f"🔸 {cat}: {count} times\n"
+        response = response.strip()
         await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
     except Exception as e:
         logger.error(f"Error formatting violations: {e}", exc_info=True)
@@ -401,21 +396,16 @@ async def user_info(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text(f"✅ User {user_id} has no violations.")
             return
 
-        if len(violations[0]) == 3:
-            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
-                f"🔸 {cat}: {count} times (last: {str(timestamp).split()[0]})"
-                for cat, count, timestamp in violations
-            )
-        elif len(violations[0]) == 2:
-            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
-                f"🔸 {cat}: {count} times"
-                for cat, count in violations
-            )
-        else:
-            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
-                f"🔸 {str(violation)}"
-                for violation in violations
-            )
+        response = f"📊 *Violation History for {user_id}*\n"
+        for v in violations:
+            cat = v.get("category", "Unknown")
+            count = v.get("count", 0)
+            last = v.get("last_updated")
+            if last:
+                response += f"🔸 {cat}: {count} times (last: {str(last).split()[0]})\n"
+            else:
+                response += f"🔸 {cat}: {count} times\n"
+        response = response.strip()
         await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
     except ValueError:
         await update.message.reply_text("❌ Invalid user ID. Must be a number.")
