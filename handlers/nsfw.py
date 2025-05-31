@@ -16,6 +16,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
 from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
+# Fix Windows console encoding for emojis
 if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -37,13 +38,14 @@ logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
 def escape_md(text: str) -> str:
+    """Escape all Telegram MarkdownV2 reserved characters, including '.' in floats."""
     if not text:
         return ""
-    # Escape all MarkdownV2 reserved characters INCLUDING '.'
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
 def escape_md_template(text: str) -> str:
+    """Escape MarkdownV2 for static lines (dot included)."""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
@@ -271,6 +273,7 @@ def format_user_alert(user, result):
         f"│➺𝚂𝚎𝚡𝚢: {escnum(result.get('sexy', 0))}",
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     ]
+    # Escape all static lines but not markdown mentions
     lines = [
         escape_md_template(line) if not ("[" in line and "](" in line) else line
         for line in lines
@@ -302,6 +305,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"Chat ID: {escape_md(str(chat_id))}",
         f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
     ]
+    # Escape all lines
     lines = [escape_md_template(line) for line in lines]
     return '\n'.join(lines)
     
