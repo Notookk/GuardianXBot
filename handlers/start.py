@@ -1,7 +1,7 @@
 import random
 import asyncio
 import logging
-from database.mongodb import add_user_if_new, user_exists
+from database.mongodb import add_user_if_new, user_exists, record_bot_start
 from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
@@ -117,10 +117,11 @@ async def new_chat_member(update: Update, context: CallbackContext):
                 ),
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("˹ᴀᴅᴅ ᴍᴇ˼", url="https://t.me/GuardianX_Robot?startgroup=true")],
-                    [InlineKeyboardButton("˹ʜᴇʟᴘ˼", callback_data="help")]
+                    [
+                        InlineKeyboardButton("˹ᴀᴅᴅ ᴍᴇ˼", url="https://t.me/GuardianX_Robot?startgroup=true"),
+                        InlineKeyboardButton("˹ʜᴇʟᴘ˼", callback_data="help")
+                    ]
                 ])
-            )
 
 async def start_command(update: Update, context: CallbackContext):
     """Handles /start command with animated text and random video."""
@@ -131,7 +132,7 @@ async def start_command(update: Update, context: CallbackContext):
     # Check if the user is new
     is_new = not await user_exists(user.id)
     await add_user_if_new(user.id)
-
+    await record_bot_start(user.id)
     # Always notify support group
     if chat.type == "private":
         await notify_support_group(context.bot, user, "private")
