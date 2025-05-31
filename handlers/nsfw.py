@@ -251,22 +251,33 @@ async def handle_nsfw_violation(
     except Exception as e:
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
+def escape_markdown(text: str) -> str:
+    if not text:
+        return ""
+    for ch in ('_', '*', '[', '`'):
+        text = text.replace(ch, f'\\{ch}')
+    return text
+
 def format_user_alert(user, result: Dict[str, float]) -> str:
-    """Format the user alert message"""
+    name = escape_markdown(user.first_name or 'None')
+    username = escape_markdown(user.username or 'None')
+    user_id = user.id
+
     return f"""
 ╭─────────────────
 ╰──● NSFW DETECTED 🔞
 ╭✠╼━━━━━━❖━━━━━━━✠╮ 
-│➺ Name: {user.first_name or 'None'}
-│➺ Username: @{user.username or 'None'}
-│➺ User ID: {user.id}
+│➺ Name: {name}
+│➺ Username: @{username if user.username else 'None'}
+│➺ User ID: {user_id}
 │➺ Details:
 │➺ Drawings: {result.get('drawings', 0):.2f}
 │➺ Neutral: {result.get('neutral', 0):.2f}
 │➺ Porn: {result.get('porn', 0):.2f}
 │➺ Hentai: {result.get('hentai', 0):.2f}
 │➺ Sexy: {result.get('sexy', 0):.2f}
-╰✠╼━━━━━━❖━━━━━━━✠╯"""
+╰✠╼━━━━━━❖━━━━━━━✠╯
+""".strip()
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     """Format the admin alert message"""
