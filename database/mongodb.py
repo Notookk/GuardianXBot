@@ -5,7 +5,10 @@ from datetime import datetime
 from typing import List, Tuple, Dict, Optional, Union, Any
 
 # --- Secure MongoDB URI ---
-MONGODB_URL = "mongodb+srv://guardian:guardian@cluster0.thn0z3g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGODB_URL = os.environ.get(
+    "MONGODB_URI",
+    "mongodb+srv://guardian:guardian@cluster0.thn0z3g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+)
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URL)
 db = client["guardianxbot"]
 
@@ -131,6 +134,9 @@ async def get_all_approved_users() -> List[Dict[str, Any]]:
             "added_by": doc.get("added_by"),
         })
     return users
+
+# --- Alias for compatibility (if handlers use get_all_users) ---
+get_all_users = get_all_approved_users
 
 # --- VIOLATIONS ---
 
@@ -440,7 +446,7 @@ async def get_broadcast_stats(broadcast_id: Union[str, ObjectId]) -> Dict[str, A
 __all__ = [
     "user_exists", "add_user_if_new",
     "upsert_user", "get_user_info",
-    "is_approved", "add_approved_user", "remove_approved_user", "get_all_approved_users",
+    "is_approved", "add_approved_user", "remove_approved_user", "get_all_approved_users", "get_all_users",
     "update_violations", "get_user_violations",
     "log_alert", "get_recent_alerts",
     "record_bot_start",
