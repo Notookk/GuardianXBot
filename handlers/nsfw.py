@@ -36,18 +36,6 @@ from .predict import detect_nsfw
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-def escape_md(text: str) -> str:
-    """Escape all Telegram MarkdownV2 reserved characters, including '.' in floats."""
-    if not text:
-        return ""
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
-
-def escape_md_template(text: str) -> str:
-    """Escape all Telegram MarkdownV2 reserved characters for static lines."""
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
-
 class MediaConverter:
     @staticmethod
     def convert_webp_to_png(file_path: str) -> Optional[str]:
@@ -217,17 +205,15 @@ async def handle_nsfw_violation(
         user_alert = format_user_alert(user, result)
         admin_alert = format_admin_alert(user, result, chat_id, update)
 
-        # Send user alert with MarkdownV2 escaping
         try:
             await context.bot.send_message(
                 chat_id,
                 user_alert,
-                parse_mode="MarkdownV2"
+                parse_mode="Markdown"
             )
         except BadRequest as e:
             logger.warning(f"Couldn't send user alert: {e}", exc_info=True)
 
-        # Send admin alert with MarkdownV2 escaping
         try:
             await context.bot.send_message(
                 ALERT_CHANNEL_ID,
@@ -235,14 +221,14 @@ async def handle_nsfw_violation(
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("👤 View Profile", url=f"tg://user?id={user.id}")]
                 ]),
-                parse_mode="MarkdownV2"
+                parse_mode="Markdown"
             )
         except BadRequest as e:
             if "Button_user_privacy_restricted" in str(e):
                 await context.bot.send_message(
                     ALERT_CHANNEL_ID,
                     admin_alert,
-                    parse_mode="MarkdownV2"
+                    parse_mode="Markdown"
                 )
             else:
                 logger.error(f"Admin alert failed: {e}", exc_info=True)
@@ -250,60 +236,41 @@ async def handle_nsfw_violation(
     except Exception as e:
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
-def format_user_alert(user, result):
-    name = escape_md(user.first_name)
-    username = f"@{escape_md(user.username)}" if user.username else "None"
-    user_id = escape_md(str(user.id))
-
-    def escnum(val):
-        return escape_md(f"{val:.2f}")
-
-    lines = [
-        "╭─────────────────",
-        "╰──● NSFW DETECTED 🔞",
-        "╭✠╼━━━━━━❖━━━━━━━✠╮ ",
-        f"│➺ Name: {name}",
-        f"│➺ Username: {username}",
-        f"│➺ User ID: {user_id}",
-        "│➺ Details:",
-        f"│➺ Drawings: {escnum(result.get('drawings', 0))}",
-        f"│➺ Neutral: {escnum(result.get('neutral', 0))}",
-        f"│➺ Porn: {escnum(result.get('porn', 0))}",
-        f"│➺ Hentai: {escnum(result.get('hentai', 0))}",
-        f"│➺ Sexy: {escnum(result.get('sexy', 0))}",
-        "╰✠╼━━━━━━❖━━━━━━━✠╯"
-    ]
-    lines = [escape_md_template(line) for line in lines]
-    return '\n'.join(lines)
+def format_user_alert(user, result: Dict[str, float]) -> str:
+    """Format the user alert message"""
+    return f"""
+╭─────────────────
+╰──● NSFW DETECTED 🔞
+╭✠╼━━━━━━❖━━━━━━━✠╮ 
+│➺ Name: {user.first_name or 'None'}
+│➺ Username: @{user.username or 'None'}
+│➺ User ID: {user.id}
+│➺ Details:
+│➺ Drawings: {result.get('drawings', 0):.2f}
+│➺ Neutral: {result.get('neutral', 0):.2f}
+│➺ Porn: {result.get('porn', 0):.2f}
+│➺ Hentai: {result.get('hentai', 0):.2f}
+│➺ Sexy: {result.get('sexy', 0):.2f}
+╰✠╼━━━━━━❖━━━━━━━✠╯"""
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    name = escape_md(user.first_name)
-    last_name = escape_md(user.last_name) if user.last_name else ""
-    username = f"@{escape_md(user.username)}" if user.username else "None"
-    user_id = escape_md(str(user.id))
-    def escnum(val):
-        return escape_md(f"{val:.2f}")
+    """Format the admin alert message"""
+    return f"""
+🚨 NSFW DETECTED 🔞
 
-    lines = [
-        "🚨 NSFW DETECTED 🔞",
-        "",
-        f"Name: {name}",
-        f"Last Name: {last_name}",
-        f"Username: {username}",
-        f"User ID: {user_id}",
-        "",
-        "Detection Scores:",
-        f"Drawings: {escnum(result.get('drawings', 0))}",
-        f"Neutral: {escnum(result.get('neutral', 0))}",
-        f"Porn: {escnum(result.get('porn', 0))}",
-        f"Hentai: {escnum(result.get('hentai', 0))}",
-        f"Sexy: {escnum(result.get('sexy', 0))}",
-        "",
-        f"Chat ID: {escape_md(str(chat_id))}",
-        f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
-    ]
-    lines = [escape_md_template(line) for line in lines]
-    return '\n'.join(lines)
+Name: {user.first_name or 'None'}
+Username: @{user.username or 'None'}
+User ID: {user.id}
+
+Detection Scores:
+Drawings: {result.get('drawings', 0):.2f}
+Neutral: {result.get('neutral', 0):.2f}
+Porn: {result.get('porn', 0):.2f}
+Hentai: {result.get('hentai', 0):.2f}
+Sexy: {result.get('sexy', 0):.2f}
+
+Chat ID: {chat_id}
+Message ID: {update.message.message_id if update.message else 'N/A'}"""
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     first_name = escape_md(user.first_name)
