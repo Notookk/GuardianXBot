@@ -38,8 +38,6 @@ from .predict import detect_nsfw
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-import re
-
 def escape_md(text: str) -> str:
     """
     Escape Telegram MarkdownV2 special characters.
@@ -294,22 +292,28 @@ def format_user_alert(user, result):
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     """Format the admin alert message using MarkdownV2."""
+    # Only escape user data, not the format string
+    first_name = escape_md(user.first_name)
+    last_name = escape_md(user.last_name) if user.last_name else ""
+    username = f"@{escape_md(user.username)}" if user.username else "None"
     msg = (
         "🚨 NSFW DETECTED 🔞\n\n"
-        f"User: {str(user.id)}\n"
-        f"Username: @{user.username if user.username else 'None'}\n"
-        f"First Name: {user.first_name}\n"
-        f"Last Name: {user.last_name}\n\n"
+        f"User: {user.id}\n"
+        f"Username: {username}\n"
+        f"First Name: {first_name}\n"
+        f"Last Name: {last_name}\n\n"
         "Detection Scores:\n"
         f"Drawings: {result.get('drawings', 0):.2f}\n"
         f"Neutral: {result.get('neutral', 0):.2f}\n"
         f"Porn: {result.get('porn', 0):.2f}\n"
         f"Hentai: {result.get('hentai', 0):.2f}\n"
         f"Sexy: {result.get('sexy', 0):.2f}\n\n"
-        f"Chat ID: {str(chat_id)}\n"
+        f"Chat ID: {chat_id}\n"
         f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
     )
-    return escape_md(msg)
+    return msg
+
+# ... (rest of your functions remain unchanged)
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
     if update.message.from_user.id != OWNER_ID:
