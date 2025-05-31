@@ -259,8 +259,9 @@ def format_user_alert(user: User, result: Dict[str, float]) -> str:
         "╭─────────────────\n"
         "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
         "╭✠╼━━━━━━❖━━━━━━━✠╮ \n"
-        f"│➺𝚄𝚜𝚎𝚛: <code>{str(user.id)}</code>\n"
+        f"│➺𝚄𝚜𝚎𝚛: {str(user.id)}\n"
         f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{user.username if user.username else 'None'}\n"
+        f"│➺𝙽𝚊𝚖𝚎: [{escape_md(user.first_name)}](tg://user?id={user.id})\n"
         "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
         f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}\n"
         f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}\n"
@@ -275,7 +276,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
     """Format the admin alert message using MarkdownV2."""
     msg = (
         "🚨 NSFW DETECTED 🔞\n\n"
-        f"User: <code>{str(user.id)}</code>\n"
+        f"User: {str(user.id)}\n"
         f"Username: @{user.username if user.username else 'None'}\n"
         f"First Name: {user.first_name}\n"
         f"Last Name: {user.last_name}\n\n"
@@ -285,8 +286,8 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"Porn: {result.get('porn', 0):.2f}\n"
         f"Hentai: {result.get('hentai', 0):.2f}\n"
         f"Sexy: {result.get('sexy', 0):.2f}\n\n"
-        f"Chat ID: <code>{str(chat_id)}</code>\n"
-        f"Message ID: <code>{str(update.message.message_id) if update.message else 'N/A'}</code>"
+        f"Chat ID: {str(chat_id)}\n"
+        f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
     )
     return escape_md(msg)
 
