@@ -39,10 +39,10 @@ logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
 def escape_md(text: Optional[str]) -> str:
-    """Escape MarkdownV2 special characters."""
+    """Escape all MarkdownV2 special characters."""
     if not text:
         return ""
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
 
 class MediaConverter:
     @staticmethod
@@ -255,12 +255,12 @@ async def handle_nsfw_violation(
 
 def format_user_alert(user: User, result: Dict[str, float]) -> str:
     """Format the user alert message using MarkdownV2."""
-    return (
+    msg = (
         "╭─────────────────\n"
         "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
         "╭✠╼━━━━━━❖━━━━━━━✠╮ \n"
-        f"│➺𝚄𝚜𝚎𝚛: <code>{escape_md(str(user.id))}</code>\n"
-        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{escape_md(user.username) if user.username else 'None'}\n"
+        f"│➺𝚄𝚜𝚎𝚛: <code>{str(user.id)}</code>\n"
+        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{user.username if user.username else 'None'}\n"
         "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
         f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}\n"
         f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}\n"
@@ -269,24 +269,26 @@ def format_user_alert(user: User, result: Dict[str, float]) -> str:
         f"│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}\n"
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
+    return escape_md(msg)
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     """Format the admin alert message using MarkdownV2."""
-    return (
+    msg = (
         "🚨 NSFW DETECTED 🔞\n\n"
-        f"User: <code>{escape_md(str(user.id))}</code>\n"
-        f"Username: @{escape_md(user.username) if user.username else 'None'}\n"
-        f"First Name: {escape_md(user.first_name)}\n"
-        f"Last Name: {escape_md(user.last_name)}\n\n"
+        f"User: <code>{str(user.id)}</code>\n"
+        f"Username: @{user.username if user.username else 'None'}\n"
+        f"First Name: {user.first_name}\n"
+        f"Last Name: {user.last_name}\n\n"
         "Detection Scores:\n"
         f"Drawings: {result.get('drawings', 0):.2f}\n"
         f"Neutral: {result.get('neutral', 0):.2f}\n"
         f"Porn: {result.get('porn', 0):.2f}\n"
         f"Hentai: {result.get('hentai', 0):.2f}\n"
         f"Sexy: {result.get('sexy', 0):.2f}\n\n"
-        f"Chat ID: <code>{escape_md(str(chat_id))}</code>\n"
-        f"Message ID: <code>{escape_md(str(update.message.message_id)) if update.message else 'N/A'}</code>"
+        f"Chat ID: <code>{str(chat_id)}</code>\n"
+        f"Message ID: <code>{str(update.message.message_id) if update.message else 'N/A'}</code>"
     )
+    return escape_md(msg)
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
     if update.message.from_user.id != OWNER_ID:
@@ -331,20 +333,20 @@ async def my_info(update: Update, context: CallbackContext) -> None:
     try:
         if len(violations[0]) == 3:
             response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {escape_md(cat)}: {count} times (last: {escape_md(str(timestamp).split()[0])})"
+                f"🔸 {cat}: {count} times (last: {str(timestamp).split()[0]})"
                 for cat, count, timestamp in violations
             )
         elif len(violations[0]) == 2:
             response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {escape_md(cat)}: {count} times"
+                f"🔸 {cat}: {count} times"
                 for cat, count in violations
             )
         else:
             response = "📊 *Your Violation History*\n" + "\n".join(
-                f"🔸 {escape_md(str(violation))}"
+                f"🔸 {str(violation)}"
                 for violation in violations
             )
-        await update.message.reply_text(response, parse_mode="MarkdownV2")
+        await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
     except Exception as e:
         logger.error(f"Error formatting violations: {e}", exc_info=True)
         await update.message.reply_text("❌ Could not retrieve violation history.")
@@ -362,21 +364,21 @@ async def user_info(update: Update, context: CallbackContext) -> None:
             return
 
         if len(violations[0]) == 3:
-            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
-                f"🔸 {escape_md(cat)}: {count} times (last: {escape_md(str(timestamp).split()[0])})"
+            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
+                f"🔸 {cat}: {count} times (last: {str(timestamp).split()[0]})"
                 for cat, count, timestamp in violations
             )
         elif len(violations[0]) == 2:
-            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
-                f"🔸 {escape_md(cat)}: {count} times"
+            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
+                f"🔸 {cat}: {count} times"
                 for cat, count in violations
             )
         else:
-            response = f"📊 *Violation History for {escape_md(str(user_id))}*\n" + "\n".join(
-                f"🔸 {escape_md(str(violation))}"
+            response = f"📊 *Violation History for {user_id}*\n" + "\n".join(
+                f"🔸 {str(violation)}"
                 for violation in violations
             )
-        await update.message.reply_text(response, parse_mode="MarkdownV2")
+        await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
     except ValueError:
         await update.message.reply_text("❌ Invalid user ID. Must be a number.")
     except Exception as e:
@@ -397,14 +399,14 @@ async def get_approved_users_list(update: Update, context: CallbackContext) -> N
     for user in approved_users:
         try:
             chat = await context.bot.get_chat(user['user_id'])
-            username = f"@{escape_md(chat.username)}" if chat.username else f"ID: {escape_md(str(user['user_id']))}"
-            response += f"\n{escape_md(str(user['user_id']))} - {username} (Added: {escape_md(str(user['date_added']))})"
+            username = f"@{chat.username}" if chat.username else f"ID: {user['user_id']}"
+            response += f"\n{user['user_id']} - {username} (Added: {user['date_added']})"
         except Exception as e:
             logger.warning(f"Couldn't fetch user {user['user_id']}: {e}", exc_info=True)
-            response += f"\n{escape_md(str(user['user_id']))} - [Unknown User] (Added: {escape_md(str(user['date_added']))})"
+            response += f"\n{user['user_id']} - [Unknown User] (Added: {user['date_added']})"
 
     response += (
         "\n╰✠╼━━━━━━❖━━━━━━━✠╯\n"
         f"💫 Total Approved: {len(approved_users)}"
     )
-    await update.message.reply_text(response, parse_mode="MarkdownV2")
+    await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
