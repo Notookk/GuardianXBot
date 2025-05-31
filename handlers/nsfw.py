@@ -218,12 +218,11 @@ async def handle_nsfw_violation(
         user_alert = format_user_alert(user, result)
         admin_alert = format_admin_alert(user, result, chat_id, update)
 
-        try:
-            await context.bot.send_message(
-                chat_id,
-                user_alert,
-                parse_mode="MarkdownV2"
-            )
+        await context.bot.send_message(
+            chat_id,
+            user_alert,
+            parse_mode="MarkdownV2"
+        )
         except BadRequest as e:
             logger.warning(f"Couldn't send user alert: {e}", exc_info=True)
 
@@ -233,8 +232,7 @@ async def handle_nsfw_violation(
                 admin_alert,
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("👤 View Profile", url=f"tg://user?id={user.id}")]
-                ]),
-                parse_mode="MarkdownV2"
+                ])
             )
         except BadRequest as e:
             if "Button_user_privacy_restricted" in str(e):
