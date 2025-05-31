@@ -1,7 +1,7 @@
 import random
 import asyncio
 import logging
-from database import Database, db
+from database.mongodb import add_user_if_new, user_exists
 from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
@@ -12,7 +12,7 @@ from telegram import (
     Chat
 )
 from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, CallbackContext, ContextTypes
+    CommandHandler, CallbackQueryHandler, CallbackContext
 )
 from telegram.helpers import escape_markdown
 
@@ -23,7 +23,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Function to escape MarkdownV2 special characters
 import re
 SUPPORT_GROUP_ID = -1002240372506  # replace with your support group ID
 from telegram.constants import ParseMode
@@ -42,7 +41,7 @@ async def notify_support_group(bot: Bot, user, context_type: str, chat: Chat = N
         )
     elif context_type == "group" and chat:
         message = (
-            f"#added_group" 
+            f"#added_group"
             f"👥 <b>Bot Added to Group</b>\n"
             f"• By: {user.mention_html()}\n"
             f"• User ID: <code>{user.id}</code>\n"
@@ -57,11 +56,9 @@ async def notify_support_group(bot: Bot, user, context_type: str, chat: Chat = N
     except Exception as e:
         print(f"Failed to notify support group: {e}")
 
-
 def escape_md(text: str) -> str:
     """Properly escapes all MarkdownV2 special characters"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
-    # First escape all backslashes, then escape other special chars
     return re.sub(r'([\\' + re.escape(escape_chars) + r'])', r'\\\1', text)
 
 # Constants
@@ -89,22 +86,21 @@ MESSAGES = {
         f"[{escape_md('xazoc')}](https://t.me/xazoc)"
         f"{escape_md(' 💛')}\n"
         f"{escape_md('● 𝐓ʜᴇʀᴇ ɪs ɴᴏ ᴅɪʀᴇᴄᴛ ᴄᴏᴍᴍᴀɴᴅ')}\n"
-        f"\\#𝐒ᴀфᴇ ᴇᴄᴏ🍃 \\#𝐗ᴏᴛɪᴋ❤️‍🔥"  # Manually escaped hashtags
+        f"\\#𝐒ᴀфᴇ ᴇᴄᴏ🍃 \\#𝐗ᴏᴛɪᴋ❤️‍🔥"
     ),
     "owner": (
-    f"{escape_md('╭─⎋ 𝐎𝐰𝐧𝐞𝐫 𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐭𝐢𝐨𝐧 ❏')}\n"
-    f"{escape_md('│')} 💫 {escape_md('ᴍʏ ᴄʀᴇᴀᴛᴏʀ & ɢᴜɪᴅᴇ ɪs ʜᴇʀᴇ!')}\n"
-    f"{escape_md('│')} 💫 {escape_md('ʜᴀᴠᴇ ǫᴜᴇʀɪᴇs ᴏʀ ɴᴇᴇᴅ sᴜᴘᴘᴏʀᴛ?')}\n"
-    f"{escape_md('│')} 💫 {escape_md('ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ʀᴇᴀᴄʜ ᴏᴜᴛ ᴀɴʏᴛɪᴍᴇ!')}\n"
-    f"{escape_md('╰──────────────────')}\n\n"
-    f"➤ 🥂 [𓍼⤹🇲 ❍‌‌ ᰻⃪᱂ ꪀ ɪ ꪀ 𝙶 𓆰🇸ʈ 𝛂 ᰻⃪᱂ 🜲\\-//\\- ❛🤍]({escape_md(OWNER_LINK)})"
-)
+        f"{escape_md('╭─⎋ 𝐎𝐰𝐧𝐞𝐫 𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐭𝐢𝐨𝐧 ❏')}\n"
+        f"{escape_md('│')} 💫 {escape_md('ᴍʏ ᴄʀᴇᴀᴛᴏʀ & ɢᴜɪᴅᴇ ɪs ʜᴇʀᴇ!')}\n"
+        f"{escape_md('│')} 💫 {escape_md('ʜᴀᴠᴇ ǫᴜᴇʀɪᴇs ᴏʀ ɴᴇᴇᴅ sᴜᴘᴘᴏʀᴛ?')}\n"
+        f"{escape_md('│')} 💫 {escape_md('ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ʀᴇᴀᴄʜ ᴏᴜᴛ ᴀɴʏᴛɪᴍᴇ!')}\n"
+        f"{escape_md('╰──────────────────')}\n\n"
+        f"➤ 🥂 [𓍼⤹🇲 ❍‌‌ ᰻⃪᱂ ꪀ ɪ ꪀ 𝙶 𓆰🇸ʈ 𝛂 ᰻⃪᱂ 🜲\\-//\\- ❛🤍]({escape_md(OWNER_LINK)})"
+    )
 }
 
-#massage when the bot is added to a new group
+# When the bot is added to a new group
 async def new_chat_member(update: Update, context: CallbackContext):
     print("✅ new_chat_member triggered")
-    
     if not update.message:
         return
 
@@ -123,27 +119,28 @@ async def new_chat_member(update: Update, context: CallbackContext):
                 ])
             )
 
-
-
 async def start_command(update: Update, context: CallbackContext):
     """Handles /start command with animated text and random video."""
     message = update.message
     user = update.effective_user
     chat = update.effective_chat
-    await db._execute("INSERT OR IGNORE INTO users(user_id) VALUES (?)", (update.effective_user.id,))
 
-    # 🔔 Notify support group
-    if chat.type == "private":
+    # Check if the user is new
+    is_new = not await user_exists(user.id)
+    await add_user_if_new(user.id)
+
+    # Notify support group only for new users
+    if is_new and chat.type == "private":
         await notify_support_group(context.bot, user, "private")
     elif chat.type in ["group", "supergroup"]:
         await notify_support_group(context.bot, user, "group", chat)
 
     # Animated start message
-    accha = await message.reply_text("❤️‍🔥ᴅιиg ᴅιиg ꨄ︎ ѕтαятιиg••")
-    for text in ["💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••", "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••", "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg••••••••"]:
+    starting_msg = await message.reply_text("❤️‍🔥ᴅιиg ᴅιиg ꨄ︎ ѕтαятιиg••")
+    for text in ["💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••", "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••", "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••••"]:
         await asyncio.sleep(0.2)
-        await accha.edit_text(text)
-    await accha.delete()
+        await starting_msg.edit_text(text)
+    await starting_msg.delete()
 
     # Send video with inline buttons
     caption = f"Hey [{escape_md(user.first_name)}](tg://user?id={user.id}), 🥀\n{MESSAGES['start']}"
@@ -204,12 +201,10 @@ async def update_message_content(query, caption: str, keyboard: InlineKeyboardMa
 def get_main_keyboard():
     """Returns the main inline keyboard with three buttons"""
     return InlineKeyboardMarkup([
-        # Help and Owner side by side
         [
             InlineKeyboardButton("˹ᴏᴡɴᴇʀ˼", callback_data="owner"),
             InlineKeyboardButton("˹ʜᴇʟᴘ˼", callback_data="help")
         ],
-        # Add Me button below
         [InlineKeyboardButton("˹ᴀᴅᴅ ᴍᴇ˼", url="https://t.me/GuardianX_Robot?startgroup=true")]
     ])
 
