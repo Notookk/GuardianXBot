@@ -253,15 +253,20 @@ async def handle_nsfw_violation(
     except Exception as e:
         logger.error(f"Violation handling failed: {e}", exc_info=True)
 
-def format_user_alert(user: User, result: Dict[str, float]) -> str:
-    """Format the user alert message using MarkdownV2."""
+def format_user_alert(user: User, result: dict) -> str:
+    """Format the user alert message using MarkdownV2 with correct order and mention."""
+    first_name = escape_md(user.first_name)
+    username = f"@{user.username}" if user.username else "None"
+    user_id = str(user.id)
+    mention = f"[{first_name}](tg://user?id={user.id})"
+
     msg = (
         "╭─────────────────\n"
         "╰──●𝙽𝚂𝙵𝚆 𝙳𝙴𝚃𝙴𝙲𝚃𝙴𝙳 🔞\n"
         "╭✠╼━━━━━━❖━━━━━━━✠╮ \n"
-        f"│➺𝚄𝚜𝚎𝚛: {str(user.id)}\n"
-        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: @{user.username if user.username else 'None'}\n"
-        f"│➺𝙽𝚊𝚖𝚎: [{escape_md(user.first_name)}](tg://user?id={user.id})\n"
+        f"│➺𝙽𝚊𝚖𝚎: {mention}\n"
+        f"│➺𝚄𝚜𝚎𝚛𝚗𝚊𝚖𝚎: {username}\n"
+        f"│➺𝚄𝚜𝚎𝚛: {user_id}\n"
         "│➺𝙳𝚎𝚝𝚊𝚒𝚕𝚜:\n"
         f"│➺𝙳𝚛𝚊𝚠𝚒𝚗𝚐𝚜: {result.get('drawings', 0):.2f}\n"
         f"│➺𝙽𝚎𝚞𝚝𝚛𝚊𝚕: {result.get('neutral', 0):.2f}\n"
@@ -270,7 +275,7 @@ def format_user_alert(user: User, result: Dict[str, float]) -> str:
         f"│➺𝚂𝚎𝚡𝚢: {result.get('sexy', 0):.2f}\n"
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
-    return escape_md(msg)
+    return msg 
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     """Format the admin alert message using MarkdownV2."""
