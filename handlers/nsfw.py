@@ -300,28 +300,22 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
     username = f"@{escape_md(user.username)}" if user.username else "None"
     def escnum(val):
         return escape_md(f"{val:.2f}")
-
-    lines = [
-        "🚨 NSFW DETECTED 🔞",
-        "",
-        f"User: {user.id}",
-        f"Username: {username}",
-        f"First Name: {first_name}",
-        f"Last Name: {last_name}",
-        "",
-        "Detection Scores:",
-        f"Drawings: {escnum(result.get('drawings', 0))}",
-        f"Neutral: {escnum(result.get('neutral', 0))}",
-        f"Porn: {escnum(result.get('porn', 0))}",
-        f"Hentai: {escnum(result.get('hentai', 0))}",
-        f"Sexy: {escnum(result.get('sexy', 0))}",
-        "",
-        f"Chat ID: {chat_id}",
-        f"Message ID: {str(update.message.message_id) if update.message else 'N/A'}"
-    ]
-    # Escape all lines EXCEPT those containing [markdown links](...)!
-    lines = [escape_md_template(line) if not ("[" in line and "](" in line) else line for line in lines]
-    return '\n'.join(lines)
+    msg = (
+        "🚨 NSFW DETECTED 🔞\n\n"
+        f"User: {user.id}\n"
+        f"Username: {username}\n"
+        f"First Name: {first_name}\n"
+        f"Last Name: {last_name}\n\n"
+        "Detection Scores:\n"
+        f"Drawings: {escnum(result.get('drawings', 0))}\n"
+        f"Neutral: {escnum(result.get('neutral', 0))}\n"
+        f"Porn: {escnum(result.get('porn', 0))}\n"
+        f"Hentai: {escnum(result.get('hentai', 0))}\n"
+        f"Sexy: {escnum(result.get('sexy', 0))}\n\n"
+        f"Chat ID: {chat_id}\n"
+        f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
+    )
+    return msg
 
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
