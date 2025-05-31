@@ -16,6 +16,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User
 from telegram.ext import CallbackContext
 from telegram.error import BadRequest
 
+# Fix Windows console encoding for emojis
 if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -268,7 +269,7 @@ def format_user_alert(user, result):
     """
     first_name = escape_md(user.first_name)
     username = f"@{escape_md(user.username)}" if user.username else "None"
-    user_id = str(user.id)
+    user_id = escape_md(str(user.id))
     mention = f"[{first_name}](tg://user?id={user.id})"
 
     def escnum(val):
@@ -309,7 +310,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
     lines = [
         "🚨 NSFW DETECTED 🔞",
         "",
-        f"User: {user.id}",
+        f"User: {escape_md(str(user.id))}",
         f"Username: {username}",
         f"First Name: {first_name}",
         f"Last Name: {last_name}",
@@ -321,7 +322,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"Hentai: {escnum(result.get('hentai', 0))}",
         f"Sexy: {escnum(result.get('sexy', 0))}",
         "",
-        f"Chat ID: {chat_id}",
+        f"Chat ID: {escape_md(str(chat_id))}",
         f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
     ]
     lines = [escape_md_template(line) for line in lines]
