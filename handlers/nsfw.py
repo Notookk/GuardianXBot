@@ -37,12 +37,15 @@ from .predict import detect_nsfw
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-def escape_md_template(text: str) -> str:
+def escape_md(text: str) -> str:
     """
-    Escape MarkdownV2 reserved characters in static template lines.
+    Escape Telegram MarkdownV2 special characters in user-supplied fields or numbers.
     """
+    if not text:
+        return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
-    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
+
 
 class MediaConverter:
     @staticmethod
@@ -283,6 +286,13 @@ def format_user_alert(user, result):
         "╰✠╼━━━━━━❖━━━━━━━✠╯"
     )
     return msg
+
+def escape_md_template(text: str) -> str:
+    """
+    Escape MarkdownV2 reserved characters in static template lines.
+    """
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', text)
 
 def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
     first_name = escape_md(user.first_name)
