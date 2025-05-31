@@ -6,7 +6,7 @@ from config import TOKEN
 from database.mongodb import ensure_indexes, close_client  # <-- Updated import
 from handlers.nsfw import handle_media
 from handlers.start import start_command, button_handler
-from database.mongodb import user_info, my_info, get_approved_users_list, add_approved, remove_approved, new_chat_member
+from handlers.utils import user_info, my_info, get_approved_users_list, add_approved, remove_approved, new_chat_member
 from handlers.broadcast import broadcast_command
 # from flask import Flask, Response, jsonify, request, send_file, stream_with_context, render_template
 
