@@ -16,8 +16,6 @@ try:
 except ImportError:
     SUDO_USERS = [7875192045]  # Replace with your own Telegram user IDs
 
- get_all_group_ids
-
 async def get_broadcast_recipients() -> list[int]:
     """
     Fetch user_ids who started the bot AND all group_ids where the bot is present.
