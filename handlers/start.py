@@ -1,7 +1,7 @@
 import random
 import asyncio
 import logging
-from database.mongodb import add_user_if_new, user_exists, record_bot_start
+from database.mongodb import add_user_if_new, user_exists, record_bot_start, record_group_join
 from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
@@ -99,6 +99,8 @@ MESSAGES = {
 }
 
 # When the bot is added to a new group
+from database.mongodb import record_group_join
+
 async def new_chat_member(update: Update, context: CallbackContext):
     print("✅ new_chat_member triggered")
     if not update.message:
@@ -106,6 +108,13 @@ async def new_chat_member(update: Update, context: CallbackContext):
 
     for member in update.message.new_chat_members:
         if member.id == context.bot.id:
+            # Record the group join!
+            await record_group_join(
+                user_id=update.effective_user.id,
+                group_id=update.effective_chat.id,
+                group_title=update.effective_chat.title or ""
+            )
+
             # Notify support group on bot add
             await notify_support_group(context.bot, update.effective_user, "group", update.effective_chat)
             # Send welcome in group
