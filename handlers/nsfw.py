@@ -279,25 +279,33 @@ def format_user_alert(user, result: Dict[str, float]) -> str:
 ╰✠╼━━━━━━❖━━━━━━━✠╯
 """.strip()
 
-def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    """Format the admin alert message"""
-    return f"""
-🚨 NSFW DETECTED 🔞
+def format_admin_alert(user, result, chat_id, update):
+    # Escape everything that is not static MarkdownV2
+    first_name = escape_md(user.first_name or "")
+    last_name = escape_md(user.last_name or "")
+    username = f"@{escape_md(user.username)}" if user.username else "None"
+    user_id = escape_md(str(user.id))
+    chat = escape_md(str(chat_id))
+    msg_id = escape_md(str(update.message.message_id)) if update.message else "N/A"
 
-Name: {user.first_name or 'None'}
-Username: @{user.username or 'None'}
-User ID: {user.id}
+    def escnum(val):
+        return escape_md(f"{val:.2f}")
 
-Detection Scores:
-Drawings: {result.get('drawings', 0):.2f}
-Neutral: {result.get('neutral', 0):.2f}
-Porn: {result.get('porn', 0):.2f}
-Hentai: {result.get('hentai', 0):.2f}
-Sexy: {result.get('sexy', 0):.2f}
-
-Chat ID: {chat_id}
-Message ID: {update.message.message_id if update.message else 'N/A'}"""
-
+    return (
+        "🚨 *NSFW DETECTED* 🔞\n\n"
+        f"*User:* {user_id}\n"
+        f"*Username:* {username}\n"
+        f"*First Name:* {first_name}\n"
+        f"*Last Name:* {last_name}\n\n"
+        "*Detection Scores:*\n"
+        f"Drawings: {escnum(result.get('drawings', 0))}\n"
+        f"Neutral: {escnum(result.get('neutral', 0))}\n"
+        f"Porn: {escnum(result.get('porn', 0))}\n"
+        f"Hentai: {escnum(result.get('hentai', 0))}\n"
+        f"Sexy: {escnum(result.get('sexy', 0))}\n\n"
+        f"*Chat ID:* {chat}\n"
+        f"*Message ID:* {msg_id}"
+    )
     
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
