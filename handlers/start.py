@@ -141,7 +141,11 @@ async def start_command(update: Update, context: CallbackContext):
 
     # Animated start message
     starting_msg = await message.reply_text("❤️‍🔥ᴅιиg ᴅιиg ꨄ︎ ѕтαятιиg••")
-    for text in ["💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••", "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••", "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••••"]:
+    for text in [
+    "💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••",
+    "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••",
+    "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••••"
+    ]:
         await asyncio.sleep(0.2)
         await starting_msg.edit_text(text)
     await starting_msg.delete()
