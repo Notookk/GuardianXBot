@@ -298,33 +298,6 @@ Sexy: {result.get('sexy', 0):.2f}
 Chat ID: {chat_id}
 Message ID: {update.message.message_id if update.message else 'N/A'}"""
 
-def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, update: Update) -> str:
-    first_name = escape_md(user.first_name)
-    last_name = escape_md(user.last_name) if user.last_name else ""
-    username = f"@{escape_md(user.username)}" if user.username else "None"
-    def escnum(val):
-        return escape_md(f"{val:.2f}")
-
-    lines = [
-        "🚨 NSFW DETECTED 🔞",
-        "",
-        f"User: {escape_md(str(user.id))}",
-        f"Username: {username}",
-        f"First Name: {first_name}",
-        f"Last Name: {last_name}",
-        "",
-        "Detection Scores:",
-        f"Drawings: {escnum(result.get('drawings', 0))}",
-        f"Neutral: {escnum(result.get('neutral', 0))}",
-        f"Porn: {escnum(result.get('porn', 0))}",
-        f"Hentai: {escnum(result.get('hentai', 0))}",
-        f"Sexy: {escnum(result.get('sexy', 0))}",
-        "",
-        f"Chat ID: {escape_md(str(chat_id))}",
-        f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
-    ]
-    # Only escape once!
-    return '\n'.join(lines)
     
 
 async def add_approved(update: Update, context: CallbackContext) -> None:
