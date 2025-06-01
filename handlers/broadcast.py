@@ -16,12 +16,13 @@ try:
 except ImportError:
     SUDO_USERS = [7875192045]  # Replace with your own Telegram user IDs
 
-async def get_broadcast_recipients() -> list[int]:
+async def get_broadcast_recipients() -> List[int]:
     """
-    Fetch user_ids who started the bot AND all group_ids where the bot is present.
+    Fetch user_ids who have started the bot AND all group_ids where the bot is present.
     """
     user_ids = await get_recipients_for_broadcast("all")
     group_ids = await get_all_group_ids()
+    # Combine and deduplicate
     recipients = list(set(user_ids + group_ids))
     return recipients
 
