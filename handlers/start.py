@@ -143,18 +143,23 @@ async def start_command(update: Update, context: CallbackContext):
     is_new = not await user_exists(user.id)
     await add_user_if_new(user.id)
     await record_bot_start(user.id)
-    # Always notify support group
     if chat.type == "private":
         await notify_support_group(context.bot, user, "private")
     elif chat.type in ["group", "supergroup"]:
         await notify_support_group(context.bot, user, "group", chat)
+        # --- Record the group for broadcasts if /start is used in group ---
+        await record_group_join(
+            user_id=user.id,
+            group_id=chat.id,
+            group_title=chat.title or ""
+        )
 
     # Animated start message
     starting_msg = await message.reply_text("❤️‍🔥ᴅιиg ᴅιиg ꨄ︎ ѕтαятιиg••")
     for text in [
-    "💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••",
-    "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••",
-    "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••••"
+        "💛ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••",
+        "🩵ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••",
+        "🤍ᴅιиg ᴅιиg ꨄ︎ sтαятιиg•••••••"
     ]:
         await asyncio.sleep(0.2)
         await starting_msg.edit_text(text)
