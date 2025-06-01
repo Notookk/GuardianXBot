@@ -413,10 +413,10 @@ async def get_approved_users_list(update: Update, context: CallbackContext) -> N
         try:
             chat = await context.bot.get_chat(user['user_id'])
             username = f"@{chat.username}" if chat.username else f"ID: {user['user_id']}"
-            response += f"\n{user['user_id']} - {username} (Added: {user['date_added']})"
+            response += f"\n{user['user_id']} - {username} "
         except Exception as e:
             logger.warning(f"Couldn't fetch user {user['user_id']}: {e}", exc_info=True)
-            response += f"\n{user['user_id']} - [Unknown User] (Added: {user['date_added']})"
+            response += f"\n{user['user_id']} - [Unknown User] "
 
     response += (
         "\n╰✠╼━━━━━━❖━━━━━━━✠╯\n"
