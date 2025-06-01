@@ -458,5 +458,5 @@ __all__ = [
     "get_user_activity",
     "add_broadcast_message", "get_pending_broadcasts", "update_broadcast_status",
     "get_recipients_for_broadcast", "log_broadcast_delivery", "get_broadcast_stats",
-    "ensure_indexes", "close_client"
+    "ensure_indexes", "close_client" , "get_all_group_ids"
 ]
