@@ -35,9 +35,8 @@ from .predict import detect_nsfw
 
 logger = logging.getLogger(__name__)
 os.makedirs(MEDIA_DIR, exist_ok=True)
-#---------------------------------<>---------------------------------------#
+
 def escape_md(text: str) -> str:
-    """Escape all Telegram MarkdownV2 reserved characters, including '.' in floats."""
     if not text:
         return ""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
@@ -45,11 +44,9 @@ def escape_md(text: str) -> str:
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
 
 def escape_md_template(text: str) -> str:
-    """Escape all Telegram MarkdownV2 reserved characters for static lines."""
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     import re
     return re.sub(r'([%s])' % re.escape(escape_chars), r'\\\1', str(text))
-#---------------------------------<>---------------------------------------#    
 
 class MediaConverter:
     @staticmethod
@@ -107,6 +104,17 @@ def extract_video_frame(video_path: str) -> Optional[str]:
         logger.error(f"OpenCV frame extraction failed: {e}", exc_info=True)
         return None
 
+def extract_first_gif_frame(gif_path: str) -> Optional[str]:
+    try:
+        with Image.open(gif_path) as im:
+            im.seek(0)  # First frame
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                im.convert("RGB").save(tmp.name, "JPEG")
+                return tmp.name
+    except Exception as e:
+        logger.error(f"GIF frame extraction failed: {e}", exc_info=True)
+        return None
+
 async def handle_media(update: Update, context: CallbackContext) -> None:
     if not update.message or not update.message.from_user:
         return
@@ -141,14 +149,15 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
                 file_extension = ".webp"
         elif update.message.document:
             file = update.message.document
-            if file.mime_type and file.mime_type.startswith("image/"):
+            if file.mime_type == "image/gif":
+                file_extension = ".gif"
+            elif file.mime_type and file.mime_type.startswith("image/"):
                 file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".jpg"
             elif file.mime_type and file.mime_type.startswith("video/"):
                 file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".mp4"
             else:
-                return  # No reply for unsupported document type
+                return
         else:
-            await update.message.reply_text("❌ Unsupported media type.")
             return
 
         if not hasattr(file, "file_id"):
@@ -160,10 +169,12 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
 
         if not os.path.exists(original_path):
             logger.error(f"Download failed: {original_path}")
-            await update.message.reply_text("❌ Failed to download media.")
             return
 
-        if update.message.video:
+        # --- GIF handling ---
+        if update.message.document and file.mime_type == "image/gif":
+            processed_path = extract_first_gif_frame(original_path)
+        elif update.message.video:
             processed_path = extract_video_frame(original_path)
         elif update.message.sticker:
             if file.is_animated:
@@ -177,7 +188,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
 
         if not processed_path or not os.path.exists(processed_path):
             logger.error(f"Processing failed for {original_path}")
-            await update.message.reply_text("❌ Failed to process media for NSFW scan.")
             return
 
         result = detect_nsfw(processed_path)
@@ -191,7 +201,6 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
 
     except Exception as e:
         logger.error(f"Media handling error: {e}", exc_info=True)
-        await update.message.reply_text("❌ An error occurred during NSFW scanning.")
     finally:
         for path in [original_path, processed_path]:
             try:
@@ -199,6 +208,7 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
                     os.remove(path)
             except Exception as e:
                 logger.warning(f"Cleanup failed for {path}: {e}", exc_info=True)
+
 
 async def handle_nsfw_violation(
     update: Update,
