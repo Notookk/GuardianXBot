@@ -416,7 +416,12 @@ async def user_info(update: Update, context: CallbackContext) -> None:
 async def get_approved_users_list(update: Update, context: CallbackContext) -> None:
     approved_users = await get_all_users()
     if not approved_users:
-        await update.message.reply_text("❌ No approved users found.")
+        if update.message:
+            await update.message.reply_text("❌ No approved users found.")
+        else:
+            chat_id = update.effective_chat.id if update.effective_chat else None
+            if chat_id:
+                await context.bot.send_message(chat_id, "❌ No approved users found.")
         return
 
     response = (
@@ -437,4 +442,9 @@ async def get_approved_users_list(update: Update, context: CallbackContext) -> N
         "\n╰✠╼━━━━━━❖━━━━━━━✠╯\n"
         f"💫 Total Approved: {len(approved_users)}"
     )
-    await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
+    if update.message:
+        await update.message.reply_text(escape_md(response), parse_mode="MarkdownV2")
+    else:
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if chat_id:
+            await context.bot.send_message(chat_id, escape_md(response), parse_mode="MarkdownV2")
