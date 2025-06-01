@@ -234,7 +234,7 @@ def get_main_keyboard():
 def get_help_keyboard():
     """Returns the help inline keyboard with correct layout."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("˹sᴜᴘᴘᴏʀᴛ˼", url="t.me/x_support_chat"), InlineKeyboardButton("˹ᴜᴘᴅᴀᴛᴇ˼", url="t.me/your_support_chat")],
+        [InlineKeyboardButton("˹sᴜᴘᴘᴏʀᴛ˼", url="t.me/x_support_chat"), InlineKeyboardButton("˹ᴜᴘᴅᴀᴛᴇ˼", url="t.me/your_support_channel")],
         [InlineKeyboardButton("˹ʙᴀᴄᴋ˼", callback_data="back")],
     ])
 
