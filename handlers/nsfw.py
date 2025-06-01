@@ -107,7 +107,7 @@ def extract_video_frame(video_path: str) -> Optional[str]:
 def extract_first_gif_frame(gif_path: str) -> Optional[str]:
     try:
         with Image.open(gif_path) as im:
-            im.seek(0)  # First frame
+            im.seek(0)
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 im.convert("RGB").save(tmp.name, "JPEG")
                 return tmp.name
@@ -171,9 +171,12 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
             logger.error(f"Download failed: {original_path}")
             return
 
-        # --- GIF handling ---
+        # GIF handling
         if update.message.document and file.mime_type == "image/gif":
             processed_path = extract_first_gif_frame(original_path)
+            if not processed_path or not os.path.exists(processed_path):
+                logger.error(f"GIF frame extraction failed for {original_path}")
+                return
         elif update.message.video:
             processed_path = extract_video_frame(original_path)
         elif update.message.sticker:
