@@ -146,8 +146,7 @@ async def handle_media(update: Update, context: CallbackContext) -> None:
             elif file.mime_type and file.mime_type.startswith("video/"):
                 file_extension = os.path.splitext(file.file_name)[1] if file.file_name else ".mp4"
             else:
-                await update.message.reply_text("❌ Unsupported document type for NSFW scanning.")
-                return
+                return  # No reply for unsupported document type
         else:
             await update.message.reply_text("❌ Unsupported media type.")
             return
