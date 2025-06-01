@@ -122,7 +122,8 @@ async def new_chat_member(update: Update, context: CallbackContext):
                         InlineKeyboardButton("˹ʜᴇʟᴘ˼", callback_data="help")
                     ]
                 ])
-
+            )
+            
 async def start_command(update: Update, context: CallbackContext):
     """Handles /start command with animated text and random video."""
     message = update.message
