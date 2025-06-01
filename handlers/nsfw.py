@@ -323,8 +323,7 @@ def format_admin_alert(user: User, result: Dict[str, float], chat_id: int, updat
         f"Chat ID: {escape_md(str(chat_id))}",
         f"Message ID: {escape_md(str(update.message.message_id)) if update.message else 'N/A'}"
     ]
-    # Escape all lines
-    lines = [escape_md_template(line) for line in lines]
+    # Only escape once!
     return '\n'.join(lines)
     
 
